@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Rastreio do envio</title>
+  <meta name="description" content="Acompanhe o rastreio do envio criado no Melhor Envio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --blue-900: #081b4a;
+      --blue-700: #0f4df3;
+      --white: #ffffff;
+      --gray-900: #212a3d;
+      --gray-700: #5a657c;
+      --gray-200: #e3e9f5;
+      --green: #12a558;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", "Segoe UI", sans-serif;
+      color: var(--gray-900);
+      background: linear-gradient(180deg, #f8fbff 0%, #f2f6ff 45%, #ffffff 100%);
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+    }
+
+    .card {
+      width: min(560px, 100%);
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 1rem;
+      padding: 1rem;
+      box-shadow: 0 16px 28px rgba(12, 24, 50, 0.1);
+    }
+
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      margin-bottom: 0.65rem;
+      background: #e6f8ee;
+      color: var(--green);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      line-height: 1.2;
+    }
+
+    p {
+      margin: 0.55rem 0 0;
+      color: var(--gray-700);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .meta {
+      margin-top: 0.8rem;
+      border-top: 1px solid var(--gray-200);
+      padding-top: 0.75rem;
+      display: grid;
+      gap: 0.3rem;
+      text-align: left;
+      font-size: 0.82rem;
+      color: var(--gray-700);
+      word-break: break-word;
+    }
+
+    .actions {
+      margin-top: 0.95rem;
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 0.8rem;
+      min-height: 2.7rem;
+      padding: 0.72rem 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      color: var(--white);
+      background: linear-gradient(120deg, var(--blue-700), #2f6dff);
+    }
+
+    .btn-outline {
+      color: var(--blue-900);
+      border: 1px solid #bccfff;
+      background: var(--white);
+    }
+
+    .btn[disabled] {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 540px) {
+      .actions { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script defer src="tracking.js"></script>
+</head>
+<body>
+  <main class="card">
+    <div class="status-tag">Envio criado</div>
+    <h1 id="trackingTitle">Seu envio foi criado com sucesso.</h1>
+    <p id="trackingText">Use os dados abaixo para acompanhar o rastreio.</p>
+    <div class="meta" id="trackingMeta"></div>
+    <div class="actions">
+      <button type="button" id="copyTrackingBtn" class="btn btn-outline">Copiar codigo de rastreio</button>
+      <a href="index.html" class="btn btn-primary">Voltar para Home</a>
+      <a id="labelLink" href="#" class="btn btn-outline" target="_blank" rel="noopener noreferrer" hidden>Abrir etiqueta</a>
+      <a href="shipping.html" class="btn btn-outline">Novo envio de teste</a>
+    </div>
+  </main>
+</body>
+</html>

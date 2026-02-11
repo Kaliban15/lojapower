@@ -1,0 +1,26 @@
+{
+  "benefitText": "Frete Rapido e garantia de 3 anos",
+  "featuredProductId": "p-1770675245006",
+  "carousel": [
+    {
+      "id": "s-001",
+      "kicker": "PARA CLIENTE FIEL",
+      "title": "Mini Rastreador GPS com",
+      "highlight": "30% OFF",
+      "description": "Rastreamento em tempo real + garantia de 3 anos.",
+      "buttonText": "Comprar agora",
+      "buttonLink": "produto.html?cupom=CLIENTE30",
+      "image": ""
+    },
+    {
+      "id": "s-002",
+      "kicker": "NOVA OFERTA",
+      "title": "Fone Bluetooth Pro com envio imediato",
+      "highlight": "",
+      "description": "Qualidade de som e acabamento premium.",
+      "buttonText": "Ver produto",
+      "buttonLink": "produto.html?cupom=CLIENTE30",
+      "image": ""
+    }
+  ]
+}

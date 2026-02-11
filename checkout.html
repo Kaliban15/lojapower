@@ -1,0 +1,132 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Checkout</title>
+  <meta name="description" content="Checkout rápido Power Produtos com cupom automático e pagamento via Checkout Pro Mercado Pago." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="checkout.css" />
+  <script defer src="checkout.js"></script>
+</head>
+<body>
+  <div class="top-ribbon">Voce esta no checkout seguro da Power Produtos</div>
+
+  <header class="site-header container">
+    <a class="back-link" href="produto.html" aria-label="Voltar para produto">← Voltar para produto</a>
+    <strong>Checkout</strong>
+  </header>
+
+  <main class="container">
+    <section class="checkout">
+      <div class="checkout-main">
+        <h1>Finalizar pedido no Checkout Pro do Mercado Pago</h1>
+        <p>Checkout Pro do Mercado Pago: voce finaliza em ambiente seguro, sem cadastro no site.</p>
+
+        <form id="checkoutForm" class="checkout-form" novalidate>
+          <label>
+            Nome completo (opcional)
+            <input type="text" name="name" autocomplete="name" />
+          </label>
+
+          <label>
+            E-mail (opcional)
+            <input type="email" name="email" autocomplete="email" placeholder="voce@email.com" />
+          </label>
+
+          <label>
+            WhatsApp (opcional)
+            <input type="tel" name="phone" autocomplete="tel" placeholder="(11) 99999-9999" />
+          </label>
+
+          <button type="submit" class="btn btn-primary btn-block" id="checkoutBtn">Ir para Checkout Pro</button>
+          <p class="mini-note">Ao continuar, voce concorda com os termos da compra e da garantia. O envio sera tratado apos a confirmacao do pagamento.</p>
+        </form>
+      </div>
+
+      <aside class="order-summary" aria-label="Resumo do pedido">
+        <h2>Seu pedido</h2>
+
+        <div class="summary-line">
+          <span id="lineProductTitle">Produto</span>
+          <strong id="lineBasePrice">R$ 0,00</strong>
+        </div>
+
+        <div class="summary-line discount" id="couponRow">
+          <span id="couponLabel">Cupom CLIENTE30</span>
+          <strong id="lineDiscount">-R$ 0,00</strong>
+        </div>
+
+        <div id="upsellLines" class="upsell-lines"></div>
+
+        <div class="summary-line">
+          <span>Entrega (temporariamente)</span>
+          <strong id="lineShipping">R$ 0,00</strong>
+        </div>
+
+        <div class="summary-line total">
+          <span>Total</span>
+          <strong id="lineTotal">R$ 0,00</strong>
+        </div>
+
+        <button class="btn btn-outline btn-block" id="generatePix" type="button">Gerar link do Checkout Pro</button>
+
+        <section id="pixBox" class="pix-box" hidden>
+          <p>Checkout Pro Mercado Pago</p>
+          <p class="pix-status pending" id="pixStatus">Gerando link seguro do Checkout Pro...</p>
+          <textarea id="pixCode" readonly placeholder="Link do checkout"></textarea>
+          <div class="pix-actions">
+            <button class="btn btn-primary btn-block" type="button" id="copyPix">Copiar link</button>
+            <a class="btn btn-outline btn-block" id="pixTicketLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Abrir Checkout Pro</a>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="upsell" aria-label="Acessorios recomendados">
+      <div class="upsell-head">
+        <h2>Aproveite e leve junto</h2>
+        <p>Acessorios com preco exclusivo para este pedido.</p>
+      </div>
+
+      <div class="upsell-grid">
+        <article class="upsell-card">
+          <h3>Suporte Magnetico Pro</h3>
+          <p>Fixacao extra para uso veicular e escritorio.</p>
+          <label>
+            <input type="checkbox" data-upsell-id="magnet" data-upsell-price="59.9" />
+            Adicionar por R$ 59,90
+          </label>
+        </article>
+
+        <article class="upsell-card">
+          <h3>Fonte Turbo 33W</h3>
+          <p>Carga rapida com protecao contra sobrecarga.</p>
+          <label>
+            <input type="checkbox" data-upsell-id="charger" data-upsell-price="89.9" />
+            Adicionar por R$ 89,90
+          </label>
+        </article>
+
+        <article class="upsell-card">
+          <h3>Case Blindada X</h3>
+          <p>Protecao reforcada para transporte e uso diario.</p>
+          <label>
+            <input type="checkbox" data-upsell-id="case" data-upsell-price="69.9" />
+            Adicionar por R$ 69,90
+          </label>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div class="sticky-checkout">
+    <span>Total com desconto: <strong id="stickyTotal">R$ 0,00</strong></span>
+    <button class="btn btn-primary" id="stickyPayBtn" type="button">Pagar no Mercado Pago</button>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

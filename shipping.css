@@ -1,0 +1,272 @@
+:root {
+  --blue-900: #081b4a;
+  --blue-700: #0f4df3;
+  --blue-500: #2f6dff;
+  --white: #ffffff;
+  --gray-950: #121722;
+  --gray-700: #5a657c;
+  --gray-300: #d2d9e8;
+  --gray-200: #e3e9f5;
+  --green: #12905a;
+  --red: #d74a4a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: var(--gray-950);
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f6ff 45%, #ffffff 100%);
+}
+
+.container {
+  width: min(1100px, calc(100% - 1.2rem));
+  margin-inline: auto;
+}
+
+.top-ribbon {
+  background: linear-gradient(90deg, var(--blue-900), var(--blue-700));
+  color: var(--white);
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.55rem 0.8rem;
+}
+
+.site-header {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.back-link {
+  color: var(--blue-900);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.cart {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  color: var(--white);
+  background: var(--blue-500);
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.shipping-layout {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.8rem;
+  padding-bottom: 1.1rem;
+}
+
+.shipping-main,
+.shipping-summary {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 1rem;
+  padding: 0.95rem;
+}
+
+.shipping-main h1 {
+  margin: 0;
+  font-size: clamp(1.15rem, 5vw, 1.52rem);
+}
+
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--gray-700);
+  font-size: 0.86rem;
+}
+
+.shipping-form {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.62rem;
+}
+
+.shipping-form label {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.shipping-form input {
+  margin-top: 0.32rem;
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid #c5d2ec;
+  border-radius: 0.62rem;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  background: #fff;
+}
+
+.row {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.btn {
+  border: 0;
+  border-radius: 0.7rem;
+  min-height: 2.72rem;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btn-primary {
+  color: var(--white);
+  background: linear-gradient(120deg, var(--blue-700), var(--blue-500));
+}
+
+.btn-light {
+  color: var(--blue-900);
+  background: #edf3ff;
+  border: 1px solid #cad7fb;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.message {
+  margin: 0.68rem 0 0;
+  min-height: 1.1rem;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.message.success { color: var(--green); }
+.message.error { color: var(--red); }
+
+.shipping-summary h2 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.line {
+  margin-top: 0.55rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.line span {
+  color: var(--gray-700);
+}
+
+.line.total {
+  margin-top: 0.72rem;
+  padding-top: 0.62rem;
+  border-top: 1px solid #d4ddf0;
+}
+
+.line.total strong {
+  color: var(--blue-900);
+  font-size: 1rem;
+}
+
+.quotes {
+  margin-top: 0.75rem;
+}
+
+.quotes-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.quote-list {
+  margin-top: 0.45rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.quote-card {
+  border: 1px solid #d3ddef;
+  border-radius: 0.75rem;
+  background: #f8fbff;
+  padding: 0.52rem 0.6rem;
+}
+
+.quote-card label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.52rem;
+  cursor: pointer;
+}
+
+.quote-card input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.quote-name {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.quote-meta {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--gray-700);
+  font-size: 0.75rem;
+}
+
+.quote-price {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--blue-900);
+}
+
+.mini-note {
+  margin: 0.56rem 0 0;
+  font-size: 0.76rem;
+  color: var(--gray-700);
+}
+
+@media (min-width: 860px) {
+  .shipping-layout {
+    grid-template-columns: 1.08fr 0.92fr;
+    align-items: start;
+  }
+
+  .row {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+
+  .row.row-split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* Oculta o fluxo manual para ativar o One Click */
+#calculateShippingBtn, 
+#quoteList, 
+.shipping-options-title {
+    display: none !important;
+}
+
+/* Deixa o botão de finalizar bem visível */
+#continueToPaymentBtn {
+    width: 100%;
+    margin-top: 20px;
+    background-color: #28a745; /* Verde de sucesso/compra */
+    font-size: 1.1rem;
+    font-weight: bold;
+}

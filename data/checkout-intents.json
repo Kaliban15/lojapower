@@ -1,0 +1,671 @@
+{
+  "POWER-1770826989884": {
+    "externalReference": "POWER-1770826989884",
+    "title": "sfdfedf + Frete",
+    "payer": {
+      "name": "Marcos antonio",
+      "email": "f.bbd04@gmail.com",
+      "phone": "5511959257393",
+      "cpf": "48833345890"
+    },
+    "order": {
+      "source": "shipping-page",
+      "productId": "p-1770675444787",
+      "variationId": "",
+      "couponCode": "CLIENTE30",
+      "productAmount": 1,
+      "shippingAmount": 17.34,
+      "total": 18.34,
+      "shipping": {
+        "id": 4,
+        "serviceId": 4,
+        "service": 4,
+        "rawServiceId": "4",
+        "agencyId": null,
+        "agency": null,
+        "rawAgencyId": "",
+        "serviceName": ".Com",
+        "company": {
+          "id": "2",
+          "name": "Jadlog",
+          "picture": "https://sandbox.melhorenvio.com.br/images/shipping-companies/jadlog.png"
+        },
+        "companyName": "Jadlog",
+        "deliveryTime": 5,
+        "price": 17.34,
+        "insuranceValue": 1,
+        "insurance_value": 1
+      },
+      "package": {
+        "width": 16,
+        "height": 4,
+        "length": 16,
+        "weight": 0.3,
+        "insuranceValue": 1
+      },
+      "volumes": [
+        {
+          "width": 16,
+          "height": 4,
+          "length": 16,
+          "weight": 0.3,
+          "insurance_value": 1
+        }
+      ],
+      "insurance_value": 1,
+      "customer": {
+        "name": "Marcos antonio",
+        "email": "f.bbd04@gmail.com",
+        "phone": "5511959257393",
+        "cpf": "48833345890",
+        "document": "48833345890"
+      },
+      "customerAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "shippingAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "address": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      }
+    },
+    "items": [
+      {
+        "id": "order-p-1770675444787",
+        "title": "sfdfedf",
+        "quantity": 1,
+        "unitPrice": 1
+      },
+      {
+        "id": "shipping-4",
+        "title": "Frete - Jadlog",
+        "quantity": 1,
+        "unitPrice": 17.34
+      }
+    ],
+    "preferenceId": "681274853-2da8bcd3-2cc1-4347-9203-b01b0c5debf9",
+    "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=681274853-2da8bcd3-2cc1-4347-9203-b01b0c5debf9",
+    "payment": {
+      "id": "",
+      "status": "not_found",
+      "statusDetail": ""
+    },
+    "shipping": {
+      "status": "waiting_payment",
+      "paymentStatus": "not_found",
+      "paymentStatusDetail": "",
+      "updatedAt": "2026-02-11T17:31:32.692Z"
+    },
+    "createdAt": "2026-02-11T16:23:11.776Z",
+    "updatedAt": "2026-02-11T17:31:32.693Z"
+  },
+  "POWER-1770827028487": {
+    "externalReference": "POWER-1770827028487",
+    "title": "sfdfedf + Frete",
+    "payer": {
+      "name": "Dengaaaa",
+      "email": "f.bbd04@gmail.com",
+      "phone": "11959257393",
+      "cpf": "48833345890"
+    },
+    "order": {
+      "source": "shipping-page",
+      "productId": "p-1770675444787",
+      "variationId": "",
+      "couponCode": "CLIENTE30",
+      "productAmount": 1,
+      "shippingAmount": 17.34,
+      "total": 18.34,
+      "shipping": {
+        "id": 4,
+        "serviceId": 4,
+        "service": 4,
+        "rawServiceId": "4",
+        "agencyId": null,
+        "agency": null,
+        "rawAgencyId": "",
+        "serviceName": ".Com",
+        "company": {
+          "id": "2",
+          "name": "Jadlog",
+          "picture": "https://sandbox.melhorenvio.com.br/images/shipping-companies/jadlog.png"
+        },
+        "companyName": "Jadlog",
+        "deliveryTime": 5,
+        "price": 17.34,
+        "insuranceValue": 1,
+        "insurance_value": 1
+      },
+      "package": {
+        "width": 16,
+        "height": 4,
+        "length": 16,
+        "weight": 0.3,
+        "insuranceValue": 1
+      },
+      "volumes": [
+        {
+          "width": 16,
+          "height": 4,
+          "length": 16,
+          "weight": 0.3,
+          "insurance_value": 1
+        }
+      ],
+      "insurance_value": 1,
+      "customer": {
+        "name": "Dengaaaa",
+        "email": "f.bbd04@gmail.com",
+        "phone": "11959257393",
+        "cpf": "48833345890",
+        "document": "48833345890"
+      },
+      "customerAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "shippingAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "address": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      }
+    },
+    "items": [
+      {
+        "id": "order-p-1770675444787",
+        "title": "sfdfedf",
+        "quantity": 1,
+        "unitPrice": 1
+      },
+      {
+        "id": "shipping-4",
+        "title": "Frete - Jadlog",
+        "quantity": 1,
+        "unitPrice": 17.34
+      }
+    ],
+    "preferenceId": "681274853-bbae2319-3d8a-467c-9153-d28572c6dc86",
+    "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=681274853-bbae2319-3d8a-467c-9153-d28572c6dc86",
+    "payment": {
+      "id": "145133882015",
+      "status": "approved",
+      "statusDetail": "accredited",
+      "approvedAt": "2026-02-11T12:25:09.000-04:00"
+    },
+    "shipping": {
+      "status": "created",
+      "paymentStatus": "pending",
+      "paymentStatusDetail": "pending_waiting_transfer",
+      "updatedAt": "2026-02-11T16:25:26.043Z",
+      "melhorEnvioOrderId": "a10e482c-78bb-4d81-acd9-47bddb9450b5",
+      "purchaseId": "a10e482d-4687-44f8-8841-76f1a0b11f2d",
+      "protocol": "ORD-202602261642",
+      "tracking": "",
+      "labelGenerated": true,
+      "labelUrl": "",
+      "warnings": []
+    },
+    "createdAt": "2026-02-11T16:23:48.759Z",
+    "updatedAt": "2026-02-11T16:25:26.043Z"
+  },
+  "POWER-1770827497233": {
+    "externalReference": "POWER-1770827497233",
+    "title": "sfdfedf + Frete",
+    "payer": {
+      "name": "Mario",
+      "email": "f.bbd04@gmail.com",
+      "phone": "11959257393",
+      "cpf": "48833345890"
+    },
+    "order": {
+      "source": "shipping-page",
+      "productId": "p-1770675444787",
+      "variationId": "",
+      "couponCode": "CLIENTE30",
+      "productAmount": 1,
+      "shippingAmount": 0,
+      "total": 1,
+      "shipping": {
+        "id": 4,
+        "serviceId": 4,
+        "service": 4,
+        "rawServiceId": "4",
+        "agencyId": null,
+        "agency": null,
+        "rawAgencyId": "",
+        "serviceName": ".Com",
+        "company": {
+          "id": "2",
+          "name": "Jadlog",
+          "picture": "https://sandbox.melhorenvio.com.br/images/shipping-companies/jadlog.png"
+        },
+        "companyName": "Jadlog",
+        "deliveryTime": 5,
+        "price": 17.34,
+        "insuranceValue": 1,
+        "insurance_value": 1
+      },
+      "package": {
+        "width": 16,
+        "height": 4,
+        "length": 16,
+        "weight": 0.3,
+        "insuranceValue": 1
+      },
+      "volumes": [
+        {
+          "width": 16,
+          "height": 4,
+          "length": 16,
+          "weight": 0.3,
+          "insurance_value": 1
+        }
+      ],
+      "insurance_value": 1,
+      "customer": {
+        "name": "Mario",
+        "email": "f.bbd04@gmail.com",
+        "phone": "11959257393",
+        "cpf": "48833345890",
+        "document": "48833345890"
+      },
+      "customerAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "shippingAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "address": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      }
+    },
+    "items": [
+      {
+        "id": "order-p-1770675444787",
+        "title": "sfdfedf",
+        "quantity": 1,
+        "unitPrice": 1
+      }
+    ],
+    "preferenceId": "681274853-c630ffff-d573-4cde-906c-4bf27223e808",
+    "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=681274853-c630ffff-d573-4cde-906c-4bf27223e808",
+    "payment": {
+      "id": "145135034027",
+      "status": "approved",
+      "statusDetail": "accredited",
+      "approvedAt": "2026-02-11T12:32:29.000-04:00"
+    },
+    "shipping": {
+      "status": "created",
+      "paymentStatus": "pending",
+      "paymentStatusDetail": "pending_waiting_transfer",
+      "updatedAt": "2026-02-11T16:32:43.276Z",
+      "melhorEnvioOrderId": "a10e4ac7-d7ac-443f-925d-06e16b4e0df2",
+      "purchaseId": "a10e4ac8-9bff-46e8-87a7-dfe8ed448d8b",
+      "protocol": "ORD-202602261644",
+      "tracking": "",
+      "labelGenerated": true,
+      "labelUrl": "",
+      "warnings": []
+    },
+    "createdAt": "2026-02-11T16:31:37.874Z",
+    "updatedAt": "2026-02-11T16:32:43.277Z"
+  },
+  "POWER-1770827761590": {
+    "externalReference": "POWER-1770827761590",
+    "title": "sfdfedf + Frete",
+    "payer": {
+      "name": "Ana Luiza Burgo",
+      "email": "analuizaburgo68@gmail.com",
+      "phone": "11951970374",
+      "cpf": "48575099892"
+    },
+    "order": {
+      "source": "shipping-page",
+      "productId": "p-1770675444787",
+      "variationId": "",
+      "couponCode": "CLIENTE30",
+      "productAmount": 1,
+      "shippingAmount": 0,
+      "total": 1,
+      "shipping": {
+        "id": 4,
+        "serviceId": 4,
+        "service": 4,
+        "rawServiceId": "4",
+        "agencyId": null,
+        "agency": null,
+        "rawAgencyId": "",
+        "serviceName": ".Com",
+        "company": {
+          "id": "2",
+          "name": "Jadlog",
+          "picture": "https://sandbox.melhorenvio.com.br/images/shipping-companies/jadlog.png"
+        },
+        "companyName": "Jadlog",
+        "deliveryTime": 5,
+        "price": 17.34,
+        "insuranceValue": 1,
+        "insurance_value": 1
+      },
+      "package": {
+        "width": 16,
+        "height": 4,
+        "length": 16,
+        "weight": 0.3,
+        "insuranceValue": 1
+      },
+      "volumes": [
+        {
+          "width": 16,
+          "height": 4,
+          "length": 16,
+          "weight": 0.3,
+          "insurance_value": 1
+        }
+      ],
+      "insurance_value": 1,
+      "customer": {
+        "name": "Ana Luiza Burgo",
+        "email": "analuizaburgo68@gmail.com",
+        "phone": "11951970374",
+        "cpf": "48575099892",
+        "document": "48575099892"
+      },
+      "customerAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "casa",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "shippingAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "casa",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "address": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "casa",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      }
+    },
+    "items": [
+      {
+        "id": "order-p-1770675444787",
+        "title": "sfdfedf",
+        "quantity": 1,
+        "unitPrice": 1
+      }
+    ],
+    "preferenceId": "681274853-961ed66e-4877-4731-8b69-eae4aa7fcc6d",
+    "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=681274853-961ed66e-4877-4731-8b69-eae4aa7fcc6d",
+    "payment": {
+      "id": "145825921796",
+      "status": "approved",
+      "statusDetail": "accredited",
+      "approvedAt": "2026-02-11T12:37:37.000-04:00"
+    },
+    "shipping": {
+      "status": "created",
+      "paymentStatus": "pending",
+      "paymentStatusDetail": "pending_waiting_transfer",
+      "updatedAt": "2026-02-11T16:37:52.764Z",
+      "melhorEnvioOrderId": "a10e4c9f-ea41-4d0f-a510-49d8d7c786cc",
+      "purchaseId": "a10e4ca0-d608-424b-8eb7-97c306c6d611",
+      "protocol": "ORD-202602261645",
+      "tracking": "",
+      "labelGenerated": true,
+      "labelUrl": "",
+      "warnings": []
+    },
+    "createdAt": "2026-02-11T16:36:01.470Z",
+    "updatedAt": "2026-02-11T16:37:52.764Z"
+  },
+  "POWER-1770829873384": {
+    "externalReference": "POWER-1770829873384",
+    "title": "sfdfedf + Frete",
+    "payer": {
+      "name": "Marlon",
+      "email": "f.bbd04@gmail.com",
+      "phone": "11959257393",
+      "cpf": "48833345890"
+    },
+    "order": {
+      "source": "shipping-page",
+      "productId": "p-1770675444787",
+      "variationId": "",
+      "couponCode": "CLIENTE30",
+      "productAmount": 1,
+      "shippingAmount": 0,
+      "total": 1,
+      "shipping": {
+        "id": 4,
+        "serviceId": 4,
+        "service": 4,
+        "rawServiceId": "4",
+        "agencyId": null,
+        "agency": null,
+        "rawAgencyId": "",
+        "serviceName": ".Com",
+        "company": {
+          "id": "2",
+          "name": "Jadlog",
+          "picture": "https://www.melhorenvio.com.br/images/shipping-companies/jadlog.png"
+        },
+        "companyName": "Jadlog",
+        "deliveryTime": 5,
+        "price": 17.75,
+        "insuranceValue": 1,
+        "insurance_value": 1
+      },
+      "package": {
+        "width": 16,
+        "height": 4,
+        "length": 16,
+        "weight": 0.3,
+        "insuranceValue": 1
+      },
+      "volumes": [
+        {
+          "width": 16,
+          "height": 4,
+          "length": 16,
+          "weight": 0.3,
+          "insurance_value": 1
+        }
+      ],
+      "insurance_value": 1,
+      "customer": {
+        "name": "Marlon",
+        "email": "f.bbd04@gmail.com",
+        "phone": "11959257393",
+        "cpf": "48833345890",
+        "document": "48833345890"
+      },
+      "customerAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "shippingAddress": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      },
+      "address": {
+        "address": "Rua Irmão Leão Criveller",
+        "street": "Rua Irmão Leão Criveller",
+        "number": "190",
+        "complement": "",
+        "district": "Jardim Sapopemba",
+        "city": "São Paulo",
+        "state": "SP",
+        "state_abbr": "SP",
+        "postalCode": "03929160",
+        "postal_code": "03929160",
+        "cep": "03929160"
+      }
+    },
+    "items": [
+      {
+        "id": "order-p-1770675444787",
+        "title": "sfdfedf",
+        "quantity": 1,
+        "unitPrice": 1
+      }
+    ],
+    "preferenceId": "681274853-d55fc8fa-ee5a-46ec-b749-8c4e07223a98",
+    "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=681274853-d55fc8fa-ee5a-46ec-b749-8c4e07223a98",
+    "payment": {
+      "id": "145140305355",
+      "status": "approved",
+      "statusDetail": "accredited",
+      "approvedAt": "2026-02-11T13:11:59.000-04:00"
+    },
+    "shipping": {
+      "status": "created",
+      "paymentStatus": "not_found",
+      "paymentStatusDetail": "",
+      "updatedAt": "2026-02-11T17:12:04.641Z",
+      "melhorEnvioOrderId": "a10e58db-8298-41ef-81b0-755d898cb921",
+      "purchaseId": "a10e58dc-47d0-41e0-b272-e27f78a780e7",
+      "protocol": "ORD-202602128364201",
+      "tracking": "",
+      "labelGenerated": true,
+      "labelUrl": "",
+      "warnings": []
+    },
+    "createdAt": "2026-02-11T17:11:13.753Z",
+    "updatedAt": "2026-02-11T17:12:04.642Z"
+  }
+}

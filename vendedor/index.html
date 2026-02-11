@@ -1,0 +1,251 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Tech | Vendedor</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="vendedor.css" />
+  <script defer src="vendedor.js"></script>
+</head>
+<body>
+  <header class="admin-header">
+    <div class="container">
+      <p class="kicker">Area interna</p>
+      <h1>Painel do Vendedor</h1>
+      <p>Gerencie produtos e todo o conteudo da Home.</p>
+    </div>
+  </header>
+
+  <main class="container admin-layout">
+    <section class="admin-card collapsible collapsed" data-collapsible>
+      <button type="button" class="collapse-toggle" data-collapse-toggle>
+        <h2>Novo produto</h2>
+        <span class="collapse-icon">+</span>
+      </button>
+      <div class="collapse-body">
+      <form id="productForm" class="form-grid" novalidate>
+        <label>
+          Titulo
+          <input type="text" name="title" required />
+        </label>
+
+        <div>
+          <label>Categorias (uma ou mais)</label>
+          <div id="createCategories" class="check-grid"></div>
+        </div>
+
+        <label>
+          Imagens do produto (ate 10)
+          <input type="file" name="imageFiles" accept="image/*" multiple />
+        </label>
+        <p class="mini-note">As miniaturas abaixo mostram a ordem final de publicacao.</p>
+        <div id="createImageOrder" data-create-image-order></div>
+
+        <label>
+          Valor
+          <input type="text" name="price" inputmode="decimal" placeholder="299,90" required />
+        </label>
+
+        <label>
+          Valor promocional (opcional)
+          <input type="text" name="promoPrice" inputmode="decimal" placeholder="209,90" />
+        </label>
+
+        <label>
+          Descricao
+          <textarea name="description" rows="4" required></textarea>
+        </label>
+
+        <label>
+          Bullets do box de preco (1 por linha)
+          <textarea name="bulletsText" rows="4" placeholder="Garantia oficial de 3 anos&#10;Rastreamento em tempo real no celular"></textarea>
+        </label>
+
+        <label>
+          Cards de confianca (1 por linha: Titulo|Descricao)
+          <textarea name="trustCardsText" rows="5" placeholder="Entrega no mesmo dia*|Em regioes elegiveis, pedido aprovado vai para expedicao expressa."></textarea>
+        </label>
+
+        <label>
+          Variacoes (1 por linha: Titulo|Preco|PrecoPromocional|img1,img2)
+          <textarea name="variationsText" rows="5" placeholder="Preto|299,90|249,90|https://..."></textarea>
+        </label>
+
+        <div class="shipping-box">
+          <strong>Dados do pacote para frete (Melhor Envio)</strong>
+          <div class="shipping-grid">
+            <label>
+              Largura (cm)
+              <input type="number" name="shippingWidth" inputmode="decimal" min="1" step="0.1" value="16" />
+            </label>
+            <label>
+              Altura (cm)
+              <input type="number" name="shippingHeight" inputmode="decimal" min="1" step="0.1" value="4" />
+            </label>
+            <label>
+              Comprimento (cm)
+              <input type="number" name="shippingLength" inputmode="decimal" min="1" step="0.1" value="16" />
+            </label>
+            <label>
+              Peso (kg)
+              <input type="number" name="shippingWeight" inputmode="decimal" min="0.01" step="0.001" value="0.3" />
+            </label>
+            <label>
+              Valor segurado (R$, opcional)
+              <input type="text" name="shippingInsurance" inputmode="decimal" placeholder="299,90" />
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Salvar produto</button>
+      </form>
+      <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="admin-card collapsible collapsed" data-collapsible>
+      <button type="button" class="collapse-toggle" data-collapse-toggle>
+        <h2>Conteudo da Home</h2>
+        <span class="collapse-icon">+</span>
+      </button>
+      <div class="collapse-body">
+      <form id="contentForm" class="form-grid" novalidate>
+        <label>
+          Texto-beneficio
+          <input type="text" id="benefitInput" required />
+        </label>
+
+        <label>
+          Produto em destaque (apos categorias)
+          <select id="featuredProductSelect"></select>
+        </label>
+
+        <div>
+          <div class="section-head">
+            <h3>Cards do carrossel</h3>
+            <button id="addSlideBtn" type="button" class="btn btn-light">Adicionar card</button>
+          </div>
+          <div id="slidesEditor" class="slides-editor"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Salvar conteudo da Home</button>
+      </form>
+      <p id="contentMessage" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="admin-card collapsible collapsed" data-collapsible>
+      <button type="button" class="collapse-toggle" data-collapse-toggle>
+        <h2>Frete (Melhor Envio Sandbox)</h2>
+        <span class="collapse-icon">+</span>
+      </button>
+      <div class="collapse-body">
+        <form id="shippingConfigForm" class="form-grid" novalidate>
+          <div class="shipping-status" id="meStatusBox">
+            <p><strong>Status:</strong> <span id="meStatusText">Carregando...</span></p>
+            <p><strong>Ambiente:</strong> <span id="meEnvironment">sandbox</span></p>
+            <p><strong>Callback:</strong> <code id="meCallbackPath">/callback/melhorenvio</code></p>
+          </div>
+
+          <div class="shipping-actions">
+            <button type="button" class="btn btn-primary" id="connectMelhorEnvioBtn">Conectar app Melhor Envio</button>
+            <button type="button" class="btn btn-light" id="disconnectMelhorEnvioBtn">Desconectar</button>
+          </div>
+
+          <label>
+            CEP de origem da loja
+            <input type="text" id="originPostalCodeInput" placeholder="01010-000" />
+          </label>
+
+          <label>
+            Servicos permitidos (IDs separados por virgula)
+            <input type="text" id="serviceIdsInput" placeholder="1,2,17" />
+          </label>
+
+          <div class="shipping-box">
+            <strong>Remetente para criacao de envio</strong>
+            <p class="mini-note">Preencha estes dados se sua conta sandbox da Melhor Envio estiver incompleta.</p>
+            <div class="sender-grid">
+              <label>
+                Nome do remetente
+                <input type="text" id="senderNameInput" placeholder="Nome completo" />
+              </label>
+              <label>
+                E-mail do remetente
+                <input type="email" id="senderEmailInput" placeholder="voce@email.com" />
+              </label>
+              <label>
+                Telefone do remetente
+                <input type="text" id="senderPhoneInput" placeholder="11999999999" />
+              </label>
+              <label>
+                CPF do remetente
+                <input type="text" id="senderDocumentInput" placeholder="00000000000" />
+              </label>
+              <label>
+                CNPJ do remetente (opcional)
+                <input type="text" id="senderCompanyDocumentInput" placeholder="00000000000000" />
+              </label>
+              <label>
+                CEP do remetente
+                <input type="text" id="senderPostalCodeInput" placeholder="00000-000" />
+              </label>
+              <label>
+                Rua do remetente
+                <input type="text" id="senderAddressInput" placeholder="Rua, avenida, etc." />
+              </label>
+              <label>
+                Numero
+                <input type="text" id="senderNumberInput" placeholder="123" />
+              </label>
+              <label>
+                Complemento (opcional)
+                <input type="text" id="senderComplementInput" placeholder="Apto, bloco, sala..." />
+              </label>
+              <label>
+                Bairro
+                <input type="text" id="senderDistrictInput" placeholder="Bairro" />
+              </label>
+              <label>
+                Cidade
+                <input type="text" id="senderCityInput" placeholder="Cidade" />
+              </label>
+              <label>
+                Estado (UF)
+                <input type="text" id="senderStateInput" maxlength="2" placeholder="SP" />
+              </label>
+            </div>
+          </div>
+
+          <div class="check-grid">
+            <label class="check-item"><input type="checkbox" id="optReceipt" /> Aviso de recebimento</label>
+            <label class="check-item"><input type="checkbox" id="optOwnHand" /> Mao propria</label>
+            <label class="check-item"><input type="checkbox" id="optCollect" /> Coleta</label>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Salvar configuracao de frete</button>
+        </form>
+        <p id="shippingMessage" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="admin-card admin-full collapsible collapsed" data-collapsible>
+      <button type="button" class="collapse-toggle" data-collapse-toggle>
+        <h2>Produtos cadastrados</h2>
+        <span class="collapse-icon">+</span>
+      </button>
+      <div class="collapse-body">
+        <div class="section-head">
+          <strong>Produtos cadastrados</strong>
+          <button id="refreshBtn" class="btn btn-light" type="button">Atualizar</button>
+        </div>
+        <div id="productList" class="product-list"></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

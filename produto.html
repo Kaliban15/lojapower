@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Produto</title>
+  <meta name="description" content="Detalhes do produto Power Tech com garantia de 3 anos e compra segura." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="product.css" />
+  <script defer src="product.js"></script>
+</head>
+<body>
+  <aside id="categorySidebar" class="sidebar" aria-hidden="true">
+    <div class="sidebar-panel">
+      <div class="sidebar-head">
+        <strong>Categorias</strong>
+        <button id="closeSidebarBtn" type="button" class="menu-btn" aria-label="Fechar menu">✕</button>
+      </div>
+      <nav id="sidebarCategoryList" class="sidebar-links" aria-label="Categorias"></nav>
+    </div>
+  </aside>
+
+  <div class="top-ribbon">Beneficio exclusivo para cliente fiel: sem taxa de intermediario + 30% OFF</div>
+
+  <header class="home-header">
+    <div class="container head-top">
+      <button id="openSidebarBtn" class="menu-btn" type="button" aria-label="Abrir menu">☰</button>
+      <a class="store-name-link" href="index.html" aria-label="Ir para Home"><strong class="store-name">POWER TECH</strong></a>
+      <a class="cart" href="my-orders.html" aria-label="Ir para minhas compras">&#128722;</a>
+    </div>
+    <div class="container head-search">
+      <label class="search">
+        <input id="searchInput" type="search" placeholder="Estou buscando..." aria-label="Pesquisar produtos" autocomplete="off" />
+      </label>
+      <div id="searchDropdown" class="search-dropdown" hidden></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="product-hero" aria-label="Produto principal">
+      <p class="breadcrumbs" id="breadcrumbs">Inicio > Produto</p>
+      <p class="hero-flag">Mais vendido | Envio imediato</p>
+
+      <h1 id="productTitle">Carregando produto...</h1>
+
+      <div class="hero-meta">
+        <span>4.8</span>
+        <span class="stars" aria-hidden="true">★★★★★</span>
+        <span>+1.000 clientes</span>
+      </div>
+      <div id="variationList" class="variation-list" aria-label="Variacoes do produto"></div>
+
+      <figure class="product-stage" aria-label="Imagem do produto">
+        <div id="productStageTrack" class="product-stage-track" aria-live="polite"></div>
+        <div id="stageFallback" class="stage-fallback" aria-hidden="true">
+          <span>3 ANOS<br />GARANTIA</span>
+        </div>
+      </figure>
+      <div id="imageThumbs" class="image-thumbs" aria-label="Miniaturas do produto"></div>
+
+      <div class="price-box">
+        <p class="old-price" id="oldPriceRow">De <strong id="heroBasePrice">R$ 0,00</strong></p>
+        <p class="new-price"><span id="heroDiscountPrice">R$ 0,00</span> no PIX <strong id="discountBadge" class="discount-badge" hidden>0% OFF</strong></p>
+        <p class="installments">ou 6x de <strong id="heroInstallment">R$ 0,00</strong> sem juros</p>
+
+        <ul class="hero-benefits" id="heroBenefits" aria-label="Beneficios principais"></ul>
+
+        <a class="btn btn-primary btn-block" id="buyNowBtn" href="shipping.html?cupom=CLIENTE30">Comprar agora com 30% OFF</a>
+        <div class="desc-block">
+          <p class="stock-note desc-text collapsed" id="productDescription">Estoque de lote promocional limitado.</p>
+          <button type="button" class="desc-toggle" id="descToggle" hidden>Ver descricao completa</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust-strip" id="trustCards" aria-label="Confianca e entrega"></section>
+  </main>
+
+  <div class="sticky-checkout">
+    <span>Preco com desconto: <strong id="stickyPrice">R$ 0,00</strong></span>
+    <a href="shipping.html?cupom=CLIENTE30" class="btn btn-primary" id="stickyBuyBtn">Comprar produto</a>
+  </div>
+
+  <div id="mpRedirectModal" class="mp-redirect-modal" hidden aria-hidden="true">
+    <section class="mp-redirect-dialog" role="alertdialog" aria-modal="true" aria-labelledby="mpRedirectTitle">
+      <img src="uploads/8858cc360668b424cb82e59eabd77bf5.jpg" alt="Mercado Pago" class="mp-redirect-logo" />
+      <p class="mp-redirect-text" id="mpRedirectTitle">
+        Para sua total segurança, você será redirecionado para o ambiente oficial do <span class="mp-redirect-brand">Mercado Pago</span> para finalizar a compra.
+      </p>
+      <div class="mp-redirect-progress" aria-hidden="true">
+        <span id="mpRedirectProgressBar" class="mp-redirect-progress-bar"></span>
+      </div>
+    </section>
+  </div>
+
+  <p class="disclaimer container">*Entrega no mesmo dia sujeita a horario de aprovacao e area de cobertura.</p>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc">
+  <title id="title">Mercado Pago</title>
+  <desc id="desc">Logotipo estilizado Mercado Pago</desc>
+  <defs>
+    <linearGradient id="bgBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00b3f2"/>
+      <stop offset="100%" stop-color="#009ee3"/>
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="105" cy="90" rx="92" ry="64" fill="url(#bgBlue)" stroke="#233c8f" stroke-width="10"/>
+
+  <path d="M40 71 C55 54, 78 49, 95 61 C112 73, 128 73, 145 58 C158 47, 175 47, 188 55"
+        fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+  <path d="M45 118 C60 106, 81 104, 96 112 C111 120, 128 120, 146 108 C159 99, 175 101, 186 111"
+        fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+  <path d="M73 90 C84 84, 98 84, 109 91" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M109 91 C120 98, 134 98, 145 92" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="96" cy="92" r="7" fill="#ffffff"/>
+  <circle cx="123" cy="95" r="7" fill="#ffffff"/>
+
+  <text x="225" y="83" fill="#253b80" font-size="78" font-weight="700" font-family="Manrope, Segoe UI, Arial, sans-serif">
+    mercado
+  </text>
+  <text x="225" y="152" fill="#00a6e8" font-size="78" font-weight="700" font-family="Manrope, Segoe UI, Arial, sans-serif">
+    pago
+  </text>
+</svg>

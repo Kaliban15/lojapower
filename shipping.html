@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Envio</title>
+  <meta name="description" content="Informe seu endereco e selecione o frete para finalizar a compra." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="shipping.css" />
+  <script defer src="shipping.js"></script>
+</head>
+<body>
+  <div class="top-ribbon">Calculo de frete oficial via Melhor Envio (Sandbox)</div>
+
+  <header class="site-header container">
+    <a class="back-link" id="backToProductLink" href="produto.html">← Voltar para produto</a>
+    <strong>Dados de envio</strong>
+    <a class="cart" href="my-orders.html" aria-label="Ir para minhas compras">&#128722;</a>
+  </header>
+
+  <main class="container shipping-layout">
+    <section class="shipping-main">
+      <h1>Informe o endereco para calcular o frete</h1>
+      <p class="subtitle">Usamos o Melhor Envio para calcular e registrar a modalidade escolhida.</p>
+
+      <form id="shippingForm" class="shipping-form" novalidate>
+        <label>
+          Nome completo
+          <input type="text" name="name" autocomplete="name" required />
+        </label>
+
+        <label>
+          E-mail
+          <input type="email" name="email" autocomplete="email" placeholder="voce@email.com" required />
+        </label>
+
+        <label>
+          WhatsApp
+          <input type="tel" name="phone" autocomplete="tel" placeholder="(11) 99999-9999" required />
+        </label>
+
+        <label>
+          CPF
+          <input type="text" name="cpf" inputmode="numeric" placeholder="000.000.000-00" required />
+        </label>
+
+        <div class="row">
+          <label>
+            CEP
+            <input type="text" name="postalCode" id="postalCodeInput" placeholder="00000-000" required />
+          </label>
+          <button type="button" class="btn btn-light" id="lookupCepBtn">Buscar CEP</button>
+        </div>
+
+        <label>
+          Rua
+          <input type="text" name="street" required />
+        </label>
+
+        <div class="row row-split">
+          <label>
+            Numero
+            <input type="text" name="number" required />
+          </label>
+          <label>
+            Complemento (opcional)
+            <input type="text" name="complement" />
+          </label>
+        </div>
+
+        <div class="row row-split">
+          <label>
+            Bairro
+            <input type="text" name="district" required />
+          </label>
+          <label>
+            Cidade
+            <input type="text" name="city" required />
+          </label>
+        </div>
+
+        <label>
+          Estado (UF)
+          <input type="text" name="state" maxlength="2" placeholder="SP" required />
+        </label>
+
+        <button type="button" class="btn btn-primary" id="calculateShippingBtn">Calcular frete</button>
+      </form>
+
+      <p id="shippingMessage" class="message" role="status" aria-live="polite"></p>
+    </section>
+
+    <aside class="shipping-summary">
+      <h2>Resumo</h2>
+      <div class="line">
+        <span>Produto</span>
+        <strong id="summaryProductTitle">Carregando...</strong>
+      </div>
+      <div class="line">
+        <span>Total do produto</span>
+        <strong id="summaryProductAmount">R$ 0,00</strong>
+      </div>
+      <div class="line">
+        <span>Frete selecionado</span>
+        <strong id="summaryShippingAmount">R$ 0,00</strong>
+      </div>
+      <div class="line total">
+        <span>Total final</span>
+        <strong id="summaryTotalAmount">R$ 0,00</strong>
+      </div>
+
+      <section class="quotes" aria-label="Opcoes de frete">
+        <p class="quotes-title">Opcoes disponiveis</p>
+        <div id="quoteList" class="quote-list">
+          <p class="mini-note">Preencha os dados e clique em calcular frete.</p>
+        </div>
+      </section>
+
+      <button type="button" class="btn btn-primary btn-block" id="continueToPaymentBtn" disabled>Continuar para pagamento</button>
+      <p class="mini-note">Ao continuar, voce ira para o pagamento no Mercado Pago. O envio sera gerado automaticamente apos pagamento aprovado.</p>
+    </aside>
+  </main>
+</body>
+</html>

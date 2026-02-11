@@ -1,0 +1,17 @@
+{
+  "name": "site-power-produtos",
+  "version": "1.0.0",
+  "description": "Fluxo mobile-first para trafego via QR Code com separacao clara entre Home, Produto e Checkout.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "multer": "^2.0.2"
+  }
+}

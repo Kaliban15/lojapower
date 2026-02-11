@@ -1,0 +1,599 @@
+{
+  "ref-POWER-1770826989884": {
+    "paymentId": "ref-POWER-1770826989884",
+    "externalReference": "POWER-1770826989884",
+    "linkedPaymentId": "",
+    "source": "checkout-preference",
+    "customerCpf": "48833345890",
+    "customerName": "Marcos antonio",
+    "status": "payment_started",
+    "paymentStatus": "initiated",
+    "paymentStatusDetail": "",
+    "melhorEnvioOrderId": "",
+    "purchaseId": "",
+    "protocol": "",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": false,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 0,
+    "createdAt": "2026-02-11T16:23:11.981Z",
+    "updatedAt": "2026-02-11T16:23:11.981Z",
+    "lastAttemptAt": "2026-02-11T16:23:11.980Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:23:11.981Z",
+        "stage": "payment_started",
+        "message": "Pagamento iniciado no Mercado Pago.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:23:11.981Z",
+        "stage": "payment_started",
+        "message": "Status atualizado para payment_started.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:23:11.981Z",
+        "stage": "payment_status",
+        "message": "Pagamento: initiated.",
+        "source": "checkout-preference"
+      }
+    ]
+  },
+  "ref-POWER-1770827028487": {
+    "paymentId": "ref-POWER-1770827028487",
+    "externalReference": "POWER-1770827028487",
+    "linkedPaymentId": "145133882015",
+    "source": "payment-polling",
+    "customerCpf": "48833345890",
+    "customerName": "Dengaaaa",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e482c-78bb-4d81-acd9-47bddb9450b5",
+    "purchaseId": "a10e482d-4687-44f8-8841-76f1a0b11f2d",
+    "protocol": "ORD-202602261642",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T16:23:48.761Z",
+    "updatedAt": "2026-02-11T16:25:26.042Z",
+    "lastAttemptAt": "2026-02-11T16:25:26.041Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:23:48.761Z",
+        "stage": "payment_started",
+        "message": "Pagamento iniciado no Mercado Pago.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:23:48.761Z",
+        "stage": "payment_started",
+        "message": "Status atualizado para payment_started.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:23:48.761Z",
+        "stage": "payment_status",
+        "message": "Pagamento: initiated.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:25:23.348Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:23.348Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:23.348Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:26.042Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:26.042Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "payment-polling"
+      }
+    ]
+  },
+  "145133882015": {
+    "paymentId": "145133882015",
+    "externalReference": "POWER-1770827028487",
+    "linkedPaymentId": "",
+    "source": "payment-polling",
+    "customerCpf": "48833345890",
+    "customerName": "Dengaaaa",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e482c-78bb-4d81-acd9-47bddb9450b5",
+    "purchaseId": "a10e482d-4687-44f8-8841-76f1a0b11f2d",
+    "protocol": "ORD-202602261642",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T16:25:23.172Z",
+    "updatedAt": "2026-02-11T16:25:26.040Z",
+    "lastAttemptAt": "2026-02-11T16:25:26.039Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:25:23.172Z",
+        "stage": "processing",
+        "message": "Status atualizado para processing.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:23.346Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:23.346Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:23.346Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:26.040Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:25:26.040Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "payment-polling"
+      }
+    ]
+  },
+  "ref-POWER-1770827497233": {
+    "paymentId": "ref-POWER-1770827497233",
+    "externalReference": "POWER-1770827497233",
+    "linkedPaymentId": "145135034027",
+    "source": "payment-polling",
+    "customerCpf": "48833345890",
+    "customerName": "Mario",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e4ac7-d7ac-443f-925d-06e16b4e0df2",
+    "purchaseId": "a10e4ac8-9bff-46e8-87a7-dfe8ed448d8b",
+    "protocol": "ORD-202602261644",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T16:31:37.876Z",
+    "updatedAt": "2026-02-11T16:32:43.275Z",
+    "lastAttemptAt": "2026-02-11T16:32:43.275Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:31:37.876Z",
+        "stage": "payment_started",
+        "message": "Pagamento iniciado no Mercado Pago.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:31:37.876Z",
+        "stage": "payment_started",
+        "message": "Status atualizado para payment_started.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:31:37.876Z",
+        "stage": "payment_status",
+        "message": "Pagamento: initiated.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:32:40.732Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:40.732Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:40.732Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:43.275Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:43.275Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "payment-polling"
+      }
+    ]
+  },
+  "145135034027": {
+    "paymentId": "145135034027",
+    "externalReference": "POWER-1770827497233",
+    "linkedPaymentId": "",
+    "source": "payment-polling",
+    "customerCpf": "48833345890",
+    "customerName": "Mario",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e4ac7-d7ac-443f-925d-06e16b4e0df2",
+    "purchaseId": "a10e4ac8-9bff-46e8-87a7-dfe8ed448d8b",
+    "protocol": "ORD-202602261644",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T16:32:40.545Z",
+    "updatedAt": "2026-02-11T16:32:43.273Z",
+    "lastAttemptAt": "2026-02-11T16:32:43.272Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:32:40.545Z",
+        "stage": "processing",
+        "message": "Status atualizado para processing.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:40.730Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:40.730Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:40.730Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:43.273Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T16:32:43.273Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "payment-polling"
+      }
+    ]
+  },
+  "ref-POWER-1770827761590": {
+    "paymentId": "ref-POWER-1770827761590",
+    "externalReference": "POWER-1770827761590",
+    "linkedPaymentId": "145825921796",
+    "source": "manual-sync-reference",
+    "customerCpf": "48575099892",
+    "customerName": "Ana Luiza Burgo",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e4c9f-ea41-4d0f-a510-49d8d7c786cc",
+    "purchaseId": "a10e4ca0-d608-424b-8eb7-97c306c6d611",
+    "protocol": "ORD-202602261645",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T16:36:01.472Z",
+    "updatedAt": "2026-02-11T16:37:52.763Z",
+    "lastAttemptAt": "2026-02-11T16:37:52.762Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:36:01.472Z",
+        "stage": "payment_started",
+        "message": "Pagamento iniciado no Mercado Pago.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:36:01.472Z",
+        "stage": "payment_started",
+        "message": "Status atualizado para payment_started.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:36:01.472Z",
+        "stage": "payment_status",
+        "message": "Pagamento: initiated.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T16:37:49.979Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:49.979Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:49.979Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:52.763Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:52.763Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "manual-sync-reference"
+      }
+    ]
+  },
+  "145825921796": {
+    "paymentId": "145825921796",
+    "externalReference": "POWER-1770827761590",
+    "linkedPaymentId": "",
+    "source": "manual-sync-reference",
+    "customerCpf": "48575099892",
+    "customerName": "Ana Luiza Burgo",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e4c9f-ea41-4d0f-a510-49d8d7c786cc",
+    "purchaseId": "a10e4ca0-d608-424b-8eb7-97c306c6d611",
+    "protocol": "ORD-202602261645",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T16:37:49.685Z",
+    "updatedAt": "2026-02-11T16:37:52.761Z",
+    "lastAttemptAt": "2026-02-11T16:37:52.760Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T16:37:49.685Z",
+        "stage": "processing",
+        "message": "Status atualizado para processing.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:49.978Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:49.978Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:49.978Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:52.761Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "manual-sync-reference"
+      },
+      {
+        "at": "2026-02-11T16:37:52.761Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "manual-sync-reference"
+      }
+    ]
+  },
+  "ref-POWER-1770829873384": {
+    "paymentId": "ref-POWER-1770829873384",
+    "externalReference": "POWER-1770829873384",
+    "linkedPaymentId": "145140305355",
+    "source": "payment-polling",
+    "customerCpf": "48833345890",
+    "customerName": "Marlon",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e58db-8298-41ef-81b0-755d898cb921",
+    "purchaseId": "a10e58dc-47d0-41e0-b272-e27f78a780e7",
+    "protocol": "ORD-202602128364201",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T17:11:13.757Z",
+    "updatedAt": "2026-02-11T17:12:04.640Z",
+    "lastAttemptAt": "2026-02-11T17:12:04.640Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T17:11:13.757Z",
+        "stage": "payment_started",
+        "message": "Pagamento iniciado no Mercado Pago.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T17:11:13.757Z",
+        "stage": "payment_started",
+        "message": "Status atualizado para payment_started.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T17:11:13.757Z",
+        "stage": "payment_status",
+        "message": "Pagamento: initiated.",
+        "source": "checkout-preference"
+      },
+      {
+        "at": "2026-02-11T17:12:02.041Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:02.041Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:02.041Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:04.640Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:04.640Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "payment-polling"
+      }
+    ]
+  },
+  "145140305355": {
+    "paymentId": "145140305355",
+    "externalReference": "POWER-1770829873384",
+    "linkedPaymentId": "",
+    "source": "payment-polling",
+    "customerCpf": "48833345890",
+    "customerName": "Marlon",
+    "status": "created",
+    "paymentStatus": "approved",
+    "paymentStatusDetail": "accredited",
+    "melhorEnvioOrderId": "a10e58db-8298-41ef-81b0-755d898cb921",
+    "purchaseId": "a10e58dc-47d0-41e0-b272-e27f78a780e7",
+    "protocol": "ORD-202602128364201",
+    "tracking": "",
+    "labelUrl": "",
+    "labelGenerated": true,
+    "serviceId": 4,
+    "serviceName": ".Com",
+    "companyName": "Jadlog",
+    "errors": [],
+    "attempts": 1,
+    "createdAt": "2026-02-11T17:12:01.841Z",
+    "updatedAt": "2026-02-11T17:12:04.638Z",
+    "lastAttemptAt": "2026-02-11T17:12:04.637Z",
+    "timeline": [
+      {
+        "at": "2026-02-11T17:12:01.841Z",
+        "stage": "processing",
+        "message": "Status atualizado para processing.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:02.040Z",
+        "stage": "payment_approved",
+        "message": "Pagamento aprovado no Mercado Pago.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:02.040Z",
+        "stage": "payment_approved",
+        "message": "Status atualizado para payment_approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:02.040Z",
+        "stage": "payment_status",
+        "message": "Pagamento: approved.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:04.638Z",
+        "stage": "created",
+        "message": "Envio criado no Melhor Envio.",
+        "source": "payment-polling"
+      },
+      {
+        "at": "2026-02-11T17:12:04.638Z",
+        "stage": "created",
+        "message": "Status atualizado para created.",
+        "source": "payment-polling"
+      }
+    ]
+  }
+}

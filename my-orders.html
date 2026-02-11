@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Minhas Compras</title>
+  <meta name="description" content="Historico simples de pedidos para acesso rapido ao rastreio." />
+  <style>
+    :root {
+      --bg: #f3f6fc;
+      --card: #ffffff;
+      --line: #d8e1f2;
+      --text: #1b2740;
+      --muted: #5a6784;
+      --accent: #0f4df3;
+      --ok: #0f9152;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Manrope, "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(170deg, #eef3ff 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+    .container {
+      width: min(940px, 92vw);
+      margin: 28px auto 48px;
+    }
+    .head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.45rem;
+    }
+    .muted {
+      color: var(--muted);
+      margin: 6px 0 0;
+      font-size: 0.95rem;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      font-weight: 700;
+      padding: 10px 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .list {
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 8px 24px rgba(9, 32, 84, 0.06);
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      background: #e8f5ee;
+      color: var(--ok);
+    }
+    .meta {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin: 3px 0;
+      word-break: break-word;
+    }
+    .actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .empty {
+      background: var(--card);
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="head">
+      <div>
+        <h1>Minhas Compras</h1>
+        <p class="muted">Historico local deste navegador para acesso rapido ao rastreio.</p>
+      </div>
+      <div>
+        <button class="btn" id="refreshBtn" type="button">Atualizar</button>
+        <button class="btn" id="clearBtn" type="button">Limpar historico</button>
+      </div>
+    </div>
+
+    <section id="ordersList" class="list"></section>
+  </main>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = "power_user_orders";
+      const listEl = document.getElementById("ordersList");
+      const refreshBtn = document.getElementById("refreshBtn");
+      const clearBtn = document.getElementById("clearBtn");
+
+      function normalizeText(value) {
+        return String(value || "").trim();
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function formatDate(value) {
+        const raw = normalizeText(value);
+        if (!raw) return "";
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return raw;
+        return date.toLocaleString("pt-BR");
+      }
+
+      function readOrders() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return [];
+          return parsed.filter((item) => item && typeof item === "object");
+        } catch {
+          return [];
+        }
+      }
+
+      function buildTrackingUrl(order) {
+        const params = new URLSearchParams();
+        params.set("source", "my-orders");
+        const externalReference = normalizeText(order.externalReference);
+        const orderId = normalizeText(order.orderId);
+        const tracking = normalizeText(order.tracking);
+        const protocol = normalizeText(order.protocol);
+        const status = normalizeText(order.status);
+        const service = normalizeText(order.serviceName);
+        const company = normalizeText(order.companyName);
+        const labelUrl = normalizeText(order.labelUrl);
+
+        if (externalReference) params.set("external_reference", externalReference);
+        if (orderId) params.set("order", orderId);
+        if (tracking) params.set("tracking", tracking);
+        if (protocol) params.set("protocol", protocol);
+        if (status) params.set("shipping_status", status);
+        if (service) params.set("service", service);
+        if (company) params.set("company", company);
+        if (labelUrl) params.set("label_url", labelUrl);
+        return "/tracking.html?" + params.toString();
+      }
+
+      function render() {
+        const orders = readOrders();
+        if (!orders.length) {
+          listEl.innerHTML = [
+            '<article class="empty">',
+            "<strong>Nenhum pedido salvo neste navegador.</strong>",
+            "<p>Quando voce criar um envio, ele aparecera aqui automaticamente.</p>",
+            "</article>",
+          ].join("");
+          return;
+        }
+
+        listEl.innerHTML = orders.map((order) => {
+          const externalReference = normalizeText(order.externalReference);
+          const orderId = normalizeText(order.orderId);
+          const tracking = normalizeText(order.tracking);
+          const protocol = normalizeText(order.protocol);
+          const status = normalizeText(order.status || "created");
+          const company = normalizeText(order.companyName);
+          const service = normalizeText(order.serviceName);
+          const savedAt = formatDate(order.savedAt);
+          const trackingUrl = buildTrackingUrl(order);
+
+          return [
+            '<article class="card">',
+            '<div class="row">',
+            `<strong>${escapeHtml(externalReference || orderId || "Pedido")}</strong>`,
+            `<span class="tag">${escapeHtml(status)}</span>`,
+            "</div>",
+            `<div class="meta">Ordem Melhor Envio: ${escapeHtml(orderId || "-")}</div>`,
+            `<div class="meta">Rastreio: ${escapeHtml(tracking || protocol || "-")}</div>`,
+            `<div class="meta">Transportadora: ${escapeHtml(company || "-")} ${service ? " - " + escapeHtml(service) : ""}</div>`,
+            `<div class="meta">Salvo em: ${escapeHtml(savedAt || "-")}</div>`,
+            '<div class="actions">',
+            `<a class="btn btn-primary" href="${escapeHtml(trackingUrl)}">Abrir rastreio</a>`,
+            "</div>",
+            "</article>",
+          ].join("");
+        }).join("");
+      }
+
+      refreshBtn.addEventListener("click", render);
+      clearBtn.addEventListener("click", function () {
+        localStorage.removeItem(STORAGE_KEY);
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

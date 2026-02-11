@@ -1,0 +1,89 @@
+[
+  {
+    "id": "p-1770675444787",
+    "title": "sfdfedf",
+    "description": "aaValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.\n\n\nValor promocional invalido.",
+    "price": 50,
+    "promoPrice": 1,
+    "images": [
+      "/uploads/img-1770675444779-184670.png"
+    ],
+    "category": "Fones de ouvido",
+    "categories": [
+      "Fones de ouvido"
+    ],
+    "bullets": [
+      "Garantia oficial de 3 anos",
+      "Rastreamento em tempo real no celular",
+      "Despacho prioritario para entrega agil"
+    ],
+    "trustCards": [
+      {
+        "title": "Entrega no mesmo dia*",
+        "description": "Em regioes elegiveis, pedido aprovado vai para expedicao expressa."
+      },
+      {
+        "title": "Checkout sem senha",
+        "description": "Compra de convidado em uma pagina, com menos friccao."
+      },
+      {
+        "title": "Compra protegida",
+        "description": "Pagamento via PIX copia e cola com validacao simplificada..."
+      }
+    ],
+    "variations": [],
+    "shipping": {
+      "width": 16,
+      "height": 4,
+      "length": 16,
+      "weight": 0.3,
+      "insuranceValue": 1
+    },
+    "createdAt": "2026-02-09T22:17:24.787Z"
+  },
+  {
+    "id": "p-1770675245006",
+    "title": "Mini Rastreador Gps Veicular Com Posicionamento Inteligente",
+    "description": "Segurança total para o seu veículo. Mantenha seu carro, moto ou caminhão sempre protegido. A tecnologia avançada garante cobertura em qualquer lugar do mundo, 24 horas por dia, sem precisar pagar mensalidades.\n\nPrincipais Vantagens:\n\nCobertura global: localize seu veículo em qualquer lugar, a qualquer hora\n\nDois modelos: Um Compatível com iPhone e outro com Android: não é necessário instalar aplicativos (ASSIM QUE COMPRAR, NOS AVISE NO CHAT QUAL O SISTEMA DE SEU CELULAR, IPHONE OU ANDROID)\n\nBateria de longa duração: até 365 dias de uso com fácil troca\n\nInstalação simples: pequeno, discreto e fácil de esconder no veículo\n\nSem mensalidade: adquira uma vez e use para sempre (não é necessário internet, possui tecnologia de posicionamento)\n\nHomologado pela Anatel: produto certificado e confiável\n\n\n\nGarantia de 3 anos\n\n\n\nCompatível com todos os tipos de veículos:\n\nCarros\n\nMotos\n\nCaminhões\n\n\n\nNa caixa você recebe:\n\n1 Rastreador Veicular Global\n\nManual em português\n\nGarantia de 3 anos\n\nProteja seu veículo contra furtos e aumente sua segurança agora mesmo.\n\nGarantia do vendedor: 3 anos",
+    "price": 119,
+    "promoPrice": 83,
+    "images": [
+      "/uploads/img-1770675244998-841777.webp",
+      "/uploads/img-1770675244999-268834.webp",
+      "/uploads/img-1770675244999-185926.webp",
+      "/uploads/img-1770675244999-90736.webp",
+      "/uploads/img-1770675245000-627884.webp",
+      "/uploads/img-1770675245000-325525.webp",
+      "/uploads/img-1770675245000-985358.webp"
+    ],
+    "category": "Eletronicos",
+    "categories": [
+      "Eletronicos",
+      "Casa",
+      "Carro"
+    ],
+    "bullets": [
+      "Garantia oficial de 3 anos",
+      "Rastreamento em qualquer local do mundo, sem mensalidades"
+    ],
+    "trustCards": [
+      {
+        "title": "Despacho no mesmo dia",
+        "description": ""
+      },
+      {
+        "title": "Atendimento pós-venda garantido",
+        "description": ""
+      }
+    ],
+    "variations": [],
+    "shipping": {
+      "width": 16,
+      "height": 4,
+      "length": 16,
+      "weight": 0.3,
+      "insuranceValue": 83
+    },
+    "createdAt": "2026-02-09T22:14:05.007Z"
+  }
+]

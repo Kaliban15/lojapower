@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Aguardando Pagamento</title>
+  <meta name="description" content="Acompanhamento automatico do pagamento e geracao do envio." />
+  <style>
+    :root {
+      --bg: #eef3ff;
+      --card: #ffffff;
+      --line: #d7e0f3;
+      --text: #1c2742;
+      --muted: #5d6b8a;
+      --accent: #0f4df3;
+      --ok: #0f9152;
+      --warn: #bd6e07;
+      --err: #cc3e3e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Manrope, "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(175deg, #f4f7ff 0%, var(--bg) 80%);
+    }
+    .container {
+      width: min(900px, 92vw);
+      margin: 24px auto 44px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 10px 26px rgba(8, 29, 77, 0.08);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.4rem;
+    }
+    .muted {
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.45;
+    }
+    .status {
+      margin-top: 14px;
+      display: inline-block;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-weight: 700;
+      font-size: 0.84rem;
+      border: 1px solid var(--line);
+      background: #f5f8ff;
+    }
+    .status.ok { color: var(--ok); background: #e8f5ee; border-color: #c8e6d4; }
+    .status.warn { color: var(--warn); background: #fff4e6; border-color: #f4dfc4; }
+    .status.err { color: var(--err); background: #ffecec; border-color: #f3c9c9; }
+    .meta {
+      margin-top: 14px;
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+    .meta strong { color: var(--text); }
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      text-decoration: none;
+      font-weight: 700;
+      cursor: pointer;
+      background: #fff;
+      color: var(--text);
+    }
+    .btn-primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .log {
+      margin-top: 16px;
+      border-top: 1px dashed var(--line);
+      padding-top: 12px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      margin-right: 7px;
+      vertical-align: middle;
+      animation: pulse 1.15s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.25; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0.25; transform: scale(0.85); }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      <h1>Aguardando confirmacao do pagamento</h1>
+      <p class="muted">Assim que o Mercado Pago aprovar o PIX, geramos o envio automaticamente e redirecionamos voce para o rastreio.</p>
+      <p id="statusBadge" class="status warn"><span class="dot"></span>Pagamento iniciado</p>
+
+      <div class="meta" id="metaBox">
+        <div><strong>Referencia:</strong> <span id="referenceValue">-</span></div>
+        <div><strong>Status pagamento:</strong> <span id="paymentStatusValue">-</span></div>
+        <div><strong>Status envio:</strong> <span id="shippingStatusValue">-</span></div>
+        <div><strong>Ultima verificacao:</strong> <span id="lastCheckValue">-</span></div>
+      </div>
+
+      <div class="actions">
+        <a id="openCheckoutBtn" class="btn btn-primary" href="#" target="_blank" rel="noopener noreferrer">Abrir pagamento</a>
+        <a class="btn" href="/my-orders.html">Ir para Minhas Compras</a>
+      </div>
+
+      <div id="logBox" class="log"></div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const USER_ORDERS_STORAGE_KEY = "power_user_orders";
+      const POLL_INTERVAL_MS = 4500;
+      const FORCE_SYNC_EVERY = 3;
+
+      const statusBadge = document.getElementById("statusBadge");
+      const referenceValue = document.getElementById("referenceValue");
+      const paymentStatusValue = document.getElementById("paymentStatusValue");
+      const shippingStatusValue = document.getElementById("shippingStatusValue");
+      const lastCheckValue = document.getElementById("lastCheckValue");
+      const openCheckoutBtn = document.getElementById("openCheckoutBtn");
+      const logBox = document.getElementById("logBox");
+
+      const params = new URLSearchParams(window.location.search);
+      const externalReference = String(params.get("ref") || "").trim();
+      const checkoutUrl = String(params.get("checkout") || "").trim();
+
+      let pollAttempt = 0;
+      let redirectLocked = false;
+      let shippingErrorLogged = false;
+
+      function nowPtBr() {
+        return new Date().toLocaleString("pt-BR");
+      }
+
+      function normalizeText(value) {
+        return String(value || "").trim();
+      }
+
+      function setBadge(text, type) {
+        statusBadge.textContent = text;
+        statusBadge.className = `status ${type || ""}`.trim();
+      }
+
+      function log(text) {
+        const line = document.createElement("div");
+        line.textContent = `[${nowPtBr()}] ${text}`;
+        logBox.prepend(line);
+      }
+
+      async function readJsonResponse(response) {
+        const raw = await response.text();
+        let parsed = null;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+          parsed = null;
+        }
+        if (!response.ok) {
+          throw new Error(parsed?.message || "Falha na consulta de status.");
+        }
+        return parsed || {};
+      }
+
+      function saveUserOrder(shipping = {}, intent = {}) {
+        const entry = {
+          savedAt: new Date().toISOString(),
+          externalReference: normalizeText(intent.externalReference || externalReference),
+          orderId: normalizeText(shipping.melhorEnvioOrderId || ""),
+          tracking: normalizeText(shipping.tracking || ""),
+          protocol: normalizeText(shipping.protocol || ""),
+          status: normalizeText(shipping.status || intent?.shipping?.status || "payment_started"),
+          serviceName: normalizeText(shipping.serviceName || ""),
+          companyName: normalizeText(shipping.companyName || ""),
+          labelUrl: normalizeText(shipping.labelUrl || ""),
+          checkoutUrl: normalizeText(intent.checkoutUrl || checkoutUrl),
+        };
+
+        try {
+          const raw = localStorage.getItem(USER_ORDERS_STORAGE_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          const normalizedList = Array.isArray(list) ? list : [];
+          const filtered = normalizedList.filter((item) => {
+            if (!item || typeof item !== "object") return false;
+            const sameReference = normalizeText(item.externalReference || "") === entry.externalReference;
+            if (sameReference) return false;
+            return true;
+          });
+          filtered.unshift(entry);
+          localStorage.setItem(USER_ORDERS_STORAGE_KEY, JSON.stringify(filtered.slice(0, 100)));
+        } catch {
+          // ignore storage failures
+        }
+      }
+
+      function buildTrackingUrl(shipping = {}) {
+        const paramsToSend = new URLSearchParams();
+        paramsToSend.set("source", "waiting-payment");
+        if (externalReference) paramsToSend.set("external_reference", externalReference);
+        if (shipping.melhorEnvioOrderId) paramsToSend.set("order", String(shipping.melhorEnvioOrderId));
+        if (shipping.protocol) paramsToSend.set("protocol", String(shipping.protocol));
+        if (shipping.tracking) paramsToSend.set("tracking", String(shipping.tracking));
+        if (shipping.status) paramsToSend.set("shipping_status", String(shipping.status));
+        if (shipping.purchaseStatus) paramsToSend.set("purchase_status", String(shipping.purchaseStatus));
+        if (shipping.serviceName) paramsToSend.set("service", String(shipping.serviceName));
+        if (shipping.companyName) paramsToSend.set("company", String(shipping.companyName));
+        if (shipping.labelUrl) paramsToSend.set("label_url", String(shipping.labelUrl));
+        return `/tracking.html?${paramsToSend.toString()}`;
+      }
+
+      function isShippingReady(shipping = {}) {
+        const status = normalizeText(shipping.status).toLowerCase();
+        return status === "created" || status === "created_without_label";
+      }
+
+      async function fetchIntent() {
+        const response = await fetch(`/api/checkout/intents/${encodeURIComponent(externalReference)}`);
+        return readJsonResponse(response);
+      }
+
+      async function forceSyncReference() {
+        const response = await fetch("/api/checkout/shipping/sync-reference", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ externalReference }),
+        });
+        return readJsonResponse(response);
+      }
+
+      async function pollStatus() {
+        if (redirectLocked) return;
+        pollAttempt += 1;
+
+        try {
+          const intent = await fetchIntent();
+          const payment = intent.payment && typeof intent.payment === "object" ? intent.payment : {};
+          const shipping = intent.shipping && typeof intent.shipping === "object" ? intent.shipping : {};
+          saveUserOrder(shipping, intent);
+
+          paymentStatusValue.textContent = normalizeText(payment.status || payment.statusDetail || "pending");
+          shippingStatusValue.textContent = normalizeText(shipping.status || "waiting_payment");
+          lastCheckValue.textContent = nowPtBr();
+
+          if (isShippingReady(shipping)) {
+            redirectLocked = true;
+            setBadge("Pagamento aprovado e envio criado. Redirecionando...", "ok");
+            saveUserOrder(shipping, intent);
+            window.location.href = buildTrackingUrl(shipping);
+            return;
+          }
+
+          const paymentStatus = normalizeText(payment.status).toLowerCase();
+          const shippingStatus = normalizeText(shipping.status).toLowerCase();
+          if (shippingStatus === "shipping_error") {
+            setBadge("Pagamento aprovado, mas o envio falhou. Tentando nova sincronizacao...", "err");
+            if (!shippingErrorLogged) {
+              shippingErrorLogged = true;
+              log(normalizeText(shipping.error || "Falha na criacao de envio. Nova tentativa sera feita."));
+            }
+          } else if (paymentStatus === "approved") {
+            setBadge("Pagamento aprovado. Gerando envio...", "warn");
+          } else if (paymentStatus === "rejected" || paymentStatus === "cancelled") {
+            setBadge(`Pagamento ${paymentStatus}.`, "err");
+          } else {
+            setBadge("Aguardando aprovacao do pagamento...", "warn");
+          }
+
+          if (pollAttempt % FORCE_SYNC_EVERY === 0) {
+            const sync = await forceSyncReference();
+            if (sync?.ok && sync?.shipping && isShippingReady(sync.shipping)) {
+              redirectLocked = true;
+              setBadge("Pagamento aprovado e envio criado. Redirecionando...", "ok");
+              saveUserOrder(sync.shipping, { externalReference, checkoutUrl });
+              window.location.href = buildTrackingUrl(sync.shipping);
+              return;
+            }
+          }
+        } catch (error) {
+          lastCheckValue.textContent = nowPtBr();
+          setBadge("Conexao instavel. Tentando novamente...", "warn");
+          log(error?.message || "Falha ao consultar status do pagamento.");
+        }
+
+        window.setTimeout(pollStatus, POLL_INTERVAL_MS);
+      }
+
+      function initCheckoutButton() {
+        if (!checkoutUrl) {
+          openCheckoutBtn.textContent = "Checkout indisponivel";
+          openCheckoutBtn.removeAttribute("href");
+          openCheckoutBtn.classList.remove("btn-primary");
+          return;
+        }
+
+        openCheckoutBtn.href = checkoutUrl;
+        referenceValue.textContent = externalReference || "-";
+
+        // Tenta abrir automaticamente em nova aba para manter esta pagina monitorando o status.
+        const opened = window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+        if (!opened) {
+          log("Navegador bloqueou abertura automatica. Clique em 'Abrir pagamento'.");
+        } else {
+          log("Pagamento aberto em nova aba. Esta pagina continuara monitorando a aprovacao.");
+        }
+      }
+
+      function init() {
+        if (!externalReference) {
+          setBadge("Referencia de pagamento ausente.", "err");
+          log("Nao foi possivel iniciar monitoramento sem externalReference.");
+          openCheckoutBtn.textContent = "Voltar";
+          openCheckoutBtn.href = "/shipping.html";
+          return;
+        }
+
+        referenceValue.textContent = externalReference;
+        initCheckoutButton();
+        pollStatus();
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>

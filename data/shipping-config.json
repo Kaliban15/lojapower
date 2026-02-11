@@ -1,0 +1,41 @@
+{
+  "originPostalCode": "03929-160",
+  "services": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "options": {
+    "receipt": true,
+    "ownHand": true,
+    "collect": true
+  },
+  "sender": {
+    "name": "Giovani de Oliveira Burgo",
+    "email": "f.bbd04@gmail.com",
+    "phone": "11959257393",
+    "document": "48575101897",
+    "companyDocument": "",
+    "postalCode": "03929-160",
+    "address": "Rua irmão  Leão Criveller",
+    "number": "190",
+    "complement": "",
+    "district": "Jd Sapopemba",
+    "city": "São Paulo",
+    "state": "SP"
+  }
+}

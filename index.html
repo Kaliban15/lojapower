@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Power Produtos | Home</title>
+  <meta name="description" content="Power Produtos: ofertas em eletrônicos, rastreadores e acessórios com entrega rápida." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="home.css" />
+  <script defer src="home.js"></script>
+</head>
+<body>
+  <aside id="categorySidebar" class="sidebar" aria-hidden="true">
+    <div class="sidebar-panel">
+      <div class="sidebar-head">
+        <strong>Categorias</strong>
+        <button id="closeSidebarBtn" type="button" class="menu-btn" aria-label="Fechar menu">✕</button>
+      </div>
+      <nav id="sidebarCategoryList" class="sidebar-links" aria-label="Categorias"></nav>
+    </div>
+  </aside>
+
+  <header class="home-header">
+    <div class="container head-top">
+      <button id="openSidebarBtn" class="menu-btn" type="button" aria-label="Abrir menu">☰</button>
+      <a class="store-name-link" href="index.html" aria-label="Ir para Home"><strong class="store-name">POWER TECH</strong></a>
+      <a class="cart" href="my-orders.html" aria-label="Ir para minhas compras">&#128722;</a>
+    </div>
+    <div class="container head-search">
+      <label class="search">
+        <input id="searchInput" type="search" placeholder="Estou buscando..." aria-label="Pesquisar produtos" autocomplete="off" />
+      </label>
+      <div id="searchDropdown" class="search-dropdown" hidden></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero-carousel" id="carouselList" aria-label="Produtos em destaque"></section>
+
+    <section class="shipping-callout" aria-label="Benefício principal">
+      <strong id="benefitText">Frete Rapido e garantia de 3 anos</strong>
+    </section>
+
+    <section class="icon-shortcuts" aria-label="Atalhos de categorias" id="categoryShortcuts">
+      <button type="button" class="shortcut" data-category="Fones de ouvido"><span>🎧</span>Fones de ouvido</button>
+      <button type="button" class="shortcut" data-category="Carregadores"><span>🔌</span>Carregadores</button>
+      <button type="button" class="shortcut" data-category="Eletronicos"><span>💻</span>Eletronicos</button>
+      <button type="button" class="shortcut" data-category="Casa"><span>🏠</span>Casa</button>
+      <button type="button" class="shortcut" data-category="Carro"><span>🚗</span>Carro</button>
+    </section>
+
+    <section class="featured-wrap" aria-label="Produto em destaque">
+      <div id="featuredProduct"></div>
+    </section>
+
+    <section class="products" id="productGrid" aria-label="Lista de produtos"></section>
+  </main>
+</body>
+</html>
