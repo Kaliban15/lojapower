@@ -138,28 +138,36 @@ const DEFAULT_SHIPPING_CONFIG = {
     state: "",
   },
 };
+// 1. Configuração do Cloudinary
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-if (!fssync.existsSync(UPLOAD_DIR)) {
-  fssync.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname || "").toLowerCase() || ".jpg";
-    cb(null, `img-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+// 2. Configuração do Armazenamento (Storage)
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'produtos_powertech', 
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    public_id: (req, file) => `prod-${Date.now()}`
   },
 });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+// 3. O middleware final (Com os limites que você já usava)
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Mantém o limite de 5MB
   fileFilter: (_req, file, cb) => {
     if ((file.mimetype || "").startsWith("image/")) {
       cb(null, true);
       return;
     }
-    cb(new Error("Apenas imagens sao permitidas."));
+    cb(new Error("Apenas imagens são permitidas."));
   },
 });
 
