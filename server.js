@@ -4,21 +4,17 @@ const fssync = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const multer = require("multer");
+const connectDB = require("./database"); // <--- ADICIONE ISSO
 
 const ROOT_DIR = __dirname;
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const UPLOAD_DIR = path.join(ROOT_DIR, "uploads");
-const PRODUCTS_FILE = path.join(DATA_DIR, "products.json");
-const CONTENT_FILE = path.join(DATA_DIR, "site-content.json");
-const SEARCH_LOG_FILE = path.join(DATA_DIR, "search-log.json");
-const SHIPPING_CONFIG_FILE = path.join(DATA_DIR, "shipping-config.json");
-const MELHOR_ENVIO_TOKEN_FILE = path.join(DATA_DIR, "melhorenvio-token.json");
-const MELHOR_ENVIO_OAUTH_STATE_FILE = path.join(DATA_DIR, "melhorenvio-oauth-state.json");
-const CHECKOUT_INTENTS_FILE = path.join(DATA_DIR, "checkout-intents.json");
-const SHIPPING_ORDERS_FILE = path.join(DATA_DIR, "shipping-orders.json");
 
-const MERCADO_PAGO_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || "APP_USR-3ca42390-f485-4dd0-ac08-1c3a9e386eaf";
-const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || "APP_USR-6234434431754458-020919-fda29726e324ab898ad55463b370206a-681274853";
+// Removidos os caminhos de arquivos JSON (agora usamos MongoDB)
+
+const MERCADO_PAGO_PUBLIC_KEY = process.env.MP_PUBLIC_KEY;
+const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
+
 const MERCADO_PAGO_PAYMENTS_API = "https://api.mercadopago.com/v1/payments";
 const MERCADO_PAGO_PAYMENTS_SEARCH_API = "https://api.mercadopago.com/v1/payments/search";
 const MERCADO_PAGO_PREFERENCES_API = "https://api.mercadopago.com/checkout/preferences";
@@ -280,31 +276,44 @@ function normalizeShippingConfig(input = {}) {
   };
 }
 
-async function readJson(filePath, fallback) {
+
+
+
+
+
+
+
+// ==========================================================
+// MÓDULO MONGODB (Nova Lógica)
+// ==========================================================
+
+// 1. Configurações de Frete
+async function readShippingConfig() {
   try {
-    const raw = await fs.readFile(filePath, "utf8");
-    const cleaned = raw.replace(/^\uFEFF/, "").trim();
-    return cleaned ? JSON.parse(cleaned) : fallback;
+    const db = await connectDB();
+    const config = await db.collection("settings").findOne({ _id: "shipping_default" });
+    return normalizeShippingConfig(config || DEFAULT_SHIPPING_CONFIG);
   } catch (error) {
-    if (error.code === "ENOENT") return fallback;
-    throw error;
+    console.error("Erro Mongo (readShippingConfig):", error);
+    return normalizeShippingConfig(DEFAULT_SHIPPING_CONFIG);
   }
 }
 
-async function writeJson(filePath, value) {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(value, null, 2), "utf8");
-}
-
-async function readShippingConfig() {
-  const parsed = await readJson(SHIPPING_CONFIG_FILE, DEFAULT_SHIPPING_CONFIG);
-  return normalizeShippingConfig(parsed || DEFAULT_SHIPPING_CONFIG);
-}
-
 async function writeShippingConfig(config) {
-  await writeJson(SHIPPING_CONFIG_FILE, normalizeShippingConfig(config));
+  try {
+    const db = await connectDB();
+    const data = normalizeShippingConfig(config);
+    await db.collection("settings").updateOne(
+      { _id: "shipping_default" },
+      { $set: data },
+      { upsert: true }
+    );
+  } catch (error) {
+    console.error("Erro Mongo (writeShippingConfig):", error);
+  }
 }
 
+// Helpers de normalização (Mantivemos os seus originais pois são úteis)
 function normalizeStorageMap(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const output = {};
@@ -317,137 +326,114 @@ function normalizeStorageMap(input) {
   return output;
 }
 
-function pruneStorageMap(input = {}, maxEntries = CHECKOUT_STORE_LIMIT) {
-  const entries = Object.entries(normalizeStorageMap(input));
-  if (entries.length <= maxEntries) {
-    return Object.fromEntries(entries);
-  }
-  entries.sort((a, b) => {
-    const timeA = Date.parse(String(a[1]?.updatedAt || a[1]?.createdAt || "")) || 0;
-    const timeB = Date.parse(String(b[1]?.updatedAt || b[1]?.createdAt || "")) || 0;
-    return timeB - timeA;
-  });
-  return Object.fromEntries(entries.slice(0, maxEntries));
-}
-
+// 2. Intenções de Checkout (Carrinhos/Pedidos Iniciados)
 async function readCheckoutIntents() {
-  const parsed = await readJson(CHECKOUT_INTENTS_FILE, {});
-  return normalizeStorageMap(parsed);
+  try {
+    const db = await connectDB();
+    // Busca tudo para manter compatibilidade com lógica antiga que espera um Map
+    const docs = await db.collection("checkout_intents").find({}).toArray();
+    const map = {};
+    docs.forEach(doc => {
+      if (doc.externalReference) map[doc.externalReference] = doc;
+    });
+    return map;
+  } catch (error) {
+    console.error("Erro Mongo (readCheckoutIntents):", error);
+    return {};
+  }
 }
 
 async function writeCheckoutIntents(payload = {}) {
-  const pruned = pruneStorageMap(payload, CHECKOUT_STORE_LIMIT);
-  await writeJson(CHECKOUT_INTENTS_FILE, pruned);
-  return pruned;
+  // Função obsoleta no Mongo (salvamos item a item), mantida vazia para não quebrar chamadas.
+  return payload;
 }
 
-function normalizeCheckoutIntentPatch(externalReference, patch = {}) {
-  const hasPayerPatch = Object.prototype.hasOwnProperty.call(patch || {}, "payer")
-    && patch?.payer
-    && typeof patch.payer === "object";
-  const hasOrderPatch = Object.prototype.hasOwnProperty.call(patch || {}, "order")
-    && patch?.order
-    && typeof patch.order === "object";
-  const hasShippingPatch = Object.prototype.hasOwnProperty.call(patch || {}, "shipping")
-    && patch?.shipping
-    && typeof patch.shipping === "object";
-  const hasPaymentPatch = Object.prototype.hasOwnProperty.call(patch || {}, "payment")
-    && patch?.payment
-    && typeof patch.payment === "object";
-
-  const payer = hasPayerPatch ? patch.payer : null;
-  const order = hasOrderPatch ? patch.order : null;
-  const shipping = hasShippingPatch ? patch.shipping : null;
-  const payment = hasPaymentPatch ? patch.payment : null;
-  const items = Array.isArray(patch.items) ? patch.items : [];
-
-  return {
-    externalReference,
-    title: String(patch.title || "").trim(),
-    payer: payer
-      ? {
-        name: String(payer.name || "").trim(),
-        email: String(payer.email || "").trim(),
-        phone: String(payer.phone || "").trim(),
-        cpf: normalizeCpf(payer.cpf || payer.document),
-      }
-      : null,
-    order,
-    items: items
-      .map((item) => ({
-        id: String(item?.id || "").trim().slice(0, 64),
-        title: String(item?.title || "").trim().slice(0, 120),
-        quantity: Number(item?.quantity || 0) || 0,
-        unitPrice: Number(item?.unitPrice || item?.unit_price || 0) || 0,
-      }))
-      .filter((item) => item.id || item.title),
-    preferenceId: String(patch.preferenceId || "").trim(),
-    checkoutUrl: String(patch.checkoutUrl || "").trim(),
-    shipping: shipping || null,
-    payment: payment || null,
-  };
+async function getCheckoutIntentByExternalReference(externalReference) {
+  const key = String(externalReference || "").trim();
+  if (!key) return null;
+  try {
+    const db = await connectDB();
+    return await db.collection("checkout_intents").findOne({ externalReference: key });
+  } catch (error) {
+    return null;
+  }
 }
 
 async function upsertCheckoutIntent(externalReference, patch = {}) {
   const key = String(externalReference || "").trim().slice(0, 64);
   if (!key) return null;
 
-  const all = await readCheckoutIntents();
-  const current = all[key] && typeof all[key] === "object" ? all[key] : {};
-  const normalizedPatch = normalizeCheckoutIntentPatch(key, patch);
-  const now = new Date().toISOString();
+  try {
+    const db = await connectDB();
+    const collection = db.collection("checkout_intents");
 
-  const next = {
-    ...current,
-    externalReference: key,
-    title: normalizedPatch.title || String(current.title || "").trim(),
-    payer: {
-      ...(current.payer && typeof current.payer === "object" ? current.payer : {}),
-      ...(normalizedPatch.payer ? normalizedPatch.payer : {}),
-    },
-    order: normalizedPatch.order
-      ? normalizedPatch.order
-      : (current.order && typeof current.order === "object" ? current.order : {}),
-    items: normalizedPatch.items.length
-      ? normalizedPatch.items
-      : (Array.isArray(current.items) ? current.items : []),
-    preferenceId: normalizedPatch.preferenceId || String(current.preferenceId || ""),
-    checkoutUrl: normalizedPatch.checkoutUrl || String(current.checkoutUrl || ""),
-    payment: {
-      ...(current.payment && typeof current.payment === "object" ? current.payment : {}),
-      ...(normalizedPatch.payment ? normalizedPatch.payment : {}),
-    },
-    shipping: {
-      ...(current.shipping && typeof current.shipping === "object" ? current.shipping : {}),
-      ...(normalizedPatch.shipping ? normalizedPatch.shipping : {}),
-    },
-    createdAt: String(current.createdAt || now),
-    updatedAt: now,
-  };
+    // Busca apenas o atual
+    const current = (await collection.findOne({ externalReference: key })) || {};
+    
+    // Aplica sua lógica original de normalização
+    const normalizedPatch = normalizeCheckoutIntentPatch(key, patch);
+    const now = new Date().toISOString();
 
-  all[key] = next;
-  await writeCheckoutIntents(all);
-  return next;
+    const next = {
+      ...current,
+      externalReference: key,
+      title: normalizedPatch.title || String(current.title || "").trim(),
+      payer: {
+        ...(current.payer && typeof current.payer === "object" ? current.payer : {}),
+        ...(normalizedPatch.payer ? normalizedPatch.payer : {}),
+      },
+      order: normalizedPatch.order
+        ? normalizedPatch.order
+        : (current.order && typeof current.order === "object" ? current.order : {}),
+      items: normalizedPatch.items.length
+        ? normalizedPatch.items
+        : (Array.isArray(current.items) ? current.items : []),
+      preferenceId: normalizedPatch.preferenceId || String(current.preferenceId || ""),
+      checkoutUrl: normalizedPatch.checkoutUrl || String(current.checkoutUrl || ""),
+      payment: {
+        ...(current.payment && typeof current.payment === "object" ? current.payment : {}),
+        ...(normalizedPatch.payment ? normalizedPatch.payment : {}),
+      },
+      shipping: {
+        ...(current.shipping && typeof current.shipping === "object" ? current.shipping : {}),
+        ...(normalizedPatch.shipping ? normalizedPatch.shipping : {}),
+      },
+      createdAt: String(current.createdAt || now),
+      updatedAt: now,
+    };
+
+    // Salva no banco
+    await collection.updateOne(
+      { externalReference: key },
+      { $set: next },
+      { upsert: true }
+    );
+
+    return next;
+  } catch (error) {
+    console.error("Erro Mongo (upsertCheckoutIntent):", error);
+    return null;
+  }
 }
 
-async function getCheckoutIntentByExternalReference(externalReference) {
-  const key = String(externalReference || "").trim();
-  if (!key) return null;
-  const all = await readCheckoutIntents();
-  const entry = all[key];
-  if (!entry || typeof entry !== "object") return null;
-  return entry;
-}
-
+// 3. Pedidos de Envio (Shipping Orders)
 async function readShippingOrders() {
-  const parsed = await readJson(SHIPPING_ORDERS_FILE, {});
-  return normalizeStorageMap(parsed);
+  try {
+    const db = await connectDB();
+    const docs = await db.collection("shipping_orders").find({}).toArray();
+    const map = {};
+    docs.forEach(doc => {
+      if (doc.paymentId) map[doc.paymentId] = doc;
+    });
+    return map;
+  } catch (error) {
+    return {};
+  }
 }
 
 async function writeShippingOrders(payload = {}) {
-  const pruned = pruneStorageMap(payload, CHECKOUT_STORE_LIMIT);
-  await writeJson(SHIPPING_ORDERS_FILE, pruned);
-  return pruned;
+  // Obsoleto no Mongo
+  return payload;
 }
 
 function getShippingReferenceKey(externalReference) {
@@ -456,114 +442,111 @@ function getShippingReferenceKey(externalReference) {
   return `ref-${ref}`;
 }
 
+async function getShippingOrderRecordByPaymentId(paymentId) {
+  const key = String(paymentId || "").trim();
+  if (!key) return null;
+  try {
+    const db = await connectDB();
+    return await db.collection("shipping_orders").findOne({ paymentId: key });
+  } catch (error) {
+    return null;
+  }
+}
+
 async function upsertShippingOrderRecord(paymentId, patch = {}) {
   const key = String(paymentId || "").trim();
   if (!key) return null;
 
-  const all = await readShippingOrders();
-  const current = all[key] && typeof all[key] === "object" ? all[key] : {};
-  const now = new Date().toISOString();
-  const timelineCurrent = Array.isArray(current.timeline)
-    ? current.timeline.filter((item) => item && typeof item === "object")
-    : [];
-  const timelinePatch = Array.isArray(patch.timeline)
-    ? patch.timeline
-      .filter((item) => item && typeof item === "object")
-      .map((item) => ({
-        at: String(item.at || now),
-        stage: String(item.stage || "").trim().slice(0, 120),
-        message: String(item.message || "").trim().slice(0, 240),
-        source: String(item.source || patch.source || "").trim().slice(0, 64),
-      }))
-      .filter((item) => item.stage || item.message)
-    : [];
+  try {
+    const db = await connectDB();
+    const collection = db.collection("shipping_orders");
 
-  if (patch.auditEvent) {
-    timelinePatch.push({
-      at: now,
-      stage: String(patch.status || "").trim().slice(0, 120),
-      message: String(patch.auditEvent || "").trim().slice(0, 240),
-      source: String(patch.source || "").trim().slice(0, 64),
-    });
+    const current = (await collection.findOne({ paymentId: key })) || {};
+    const now = new Date().toISOString();
+
+    // Lógica original de Timeline e Normalização
+    const timelineCurrent = Array.isArray(current.timeline)
+      ? current.timeline.filter((item) => item && typeof item === "object")
+      : [];
+      
+    const timelinePatch = Array.isArray(patch.timeline)
+      ? patch.timeline
+        .filter((item) => item && typeof item === "object")
+        .map((item) => ({
+          at: String(item.at || now),
+          stage: String(item.stage || "").trim().slice(0, 120),
+          message: String(item.message || "").trim().slice(0, 240),
+          source: String(item.source || patch.source || "").trim().slice(0, 64),
+        }))
+        .filter((item) => item.stage || item.message)
+      : [];
+
+    if (patch.auditEvent) {
+      timelinePatch.push({
+        at: now,
+        stage: String(patch.status || "").trim().slice(0, 120),
+        message: String(patch.auditEvent || "").trim().slice(0, 240),
+        source: String(patch.source || "").trim().slice(0, 64),
+      });
+    }
+
+    if (patch.status && String(patch.status).trim() !== String(current.status || "").trim()) {
+      timelinePatch.push({
+        at: now,
+        stage: String(patch.status).trim().slice(0, 120),
+        message: `Status atualizado para ${String(patch.status).trim()}.`,
+        source: String(patch.source || "").trim().slice(0, 64),
+      });
+    }
+
+    if (patch.paymentStatus && String(patch.paymentStatus).trim() !== String(current.paymentStatus || "").trim()) {
+      timelinePatch.push({
+        at: now,
+        stage: "payment_status",
+        message: `Pagamento: ${String(patch.paymentStatus).trim()}.`,
+        source: String(patch.source || "").trim().slice(0, 64),
+      });
+    }
+
+    const next = {
+      ...current,
+      paymentId: key,
+      externalReference: String(patch.externalReference || current.externalReference || "").trim(),
+      linkedPaymentId: String(patch.linkedPaymentId || current.linkedPaymentId || "").trim(),
+      source: String(patch.source || current.source || "").trim(),
+      customerCpf: normalizeCpf(patch.customerCpf || patch.cpf || current.customerCpf || ""),
+      customerName: String(patch.customerName || current.customerName || "").trim(),
+      status: String(patch.status || current.status || "pending").trim(),
+      paymentStatus: String(patch.paymentStatus || current.paymentStatus || "").trim(),
+      paymentStatusDetail: String(patch.paymentStatusDetail || current.paymentStatusDetail || "").trim(),
+      melhorEnvioOrderId: String(patch.melhorEnvioOrderId || current.melhorEnvioOrderId || "").trim(),
+      purchaseId: String(patch.purchaseId || current.purchaseId || "").trim(),
+      protocol: String(patch.protocol || current.protocol || "").trim(),
+      tracking: String(patch.tracking || current.tracking || "").trim(),
+      labelUrl: String(patch.labelUrl || current.labelUrl || "").trim(),
+      labelGenerated: Boolean(patch.labelGenerated !== undefined ? patch.labelGenerated : current.labelGenerated),
+      serviceId: Number.isFinite(Number(patch.serviceId)) ? Number(patch.serviceId) : (Number.isFinite(Number(current.serviceId)) ? Number(current.serviceId) : null),
+      serviceName: String(patch.serviceName || current.serviceName || "").trim(),
+      companyName: String(patch.companyName || current.companyName || "").trim(),
+      errors: Array.isArray(patch.errors) ? patch.errors.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20) : (Array.isArray(current.errors) ? current.errors : []),
+      attempts: Math.max(0, Math.floor(Number(patch.attempts ?? current.attempts ?? 0) || 0)),
+      createdAt: String(current.createdAt || now),
+      updatedAt: now,
+      lastAttemptAt: String(patch.lastAttemptAt || current.lastAttemptAt || now),
+      timeline: [...timelineCurrent, ...timelinePatch].slice(-200),
+    };
+
+    await collection.updateOne(
+      { paymentId: key },
+      { $set: next },
+      { upsert: true }
+    );
+
+    return next;
+  } catch (error) {
+    console.error("Erro Mongo (upsertShippingOrderRecord):", error);
+    return null;
   }
-
-  if (
-    patch.status
-    && String(patch.status).trim()
-    && String(patch.status).trim() !== String(current.status || "").trim()
-  ) {
-    timelinePatch.push({
-      at: now,
-      stage: String(patch.status).trim().slice(0, 120),
-      message: `Status atualizado para ${String(patch.status).trim()}.`,
-      source: String(patch.source || "").trim().slice(0, 64),
-    });
-  }
-
-  if (
-    patch.paymentStatus
-    && String(patch.paymentStatus).trim()
-    && String(patch.paymentStatus).trim() !== String(current.paymentStatus || "").trim()
-  ) {
-    timelinePatch.push({
-      at: now,
-      stage: "payment_status",
-      message: `Pagamento: ${String(patch.paymentStatus).trim()}.`,
-      source: String(patch.source || "").trim().slice(0, 64),
-    });
-  }
-
-  const next = {
-    ...current,
-    paymentId: key,
-    externalReference: String(patch.externalReference || current.externalReference || "").trim(),
-    linkedPaymentId: String(patch.linkedPaymentId || current.linkedPaymentId || "").trim(),
-    source: String(patch.source || current.source || "").trim(),
-    customerCpf: normalizeCpf(patch.customerCpf || patch.cpf || current.customerCpf || ""),
-    customerName: String(patch.customerName || current.customerName || "").trim(),
-    status: String(patch.status || current.status || "pending").trim(),
-    paymentStatus: String(patch.paymentStatus || current.paymentStatus || "").trim(),
-    paymentStatusDetail: String(patch.paymentStatusDetail || current.paymentStatusDetail || "").trim(),
-    melhorEnvioOrderId: String(patch.melhorEnvioOrderId || current.melhorEnvioOrderId || "").trim(),
-    purchaseId: String(patch.purchaseId || current.purchaseId || "").trim(),
-    protocol: String(patch.protocol || current.protocol || "").trim(),
-    tracking: String(patch.tracking || current.tracking || "").trim(),
-    labelUrl: String(patch.labelUrl || current.labelUrl || "").trim(),
-    labelGenerated: Boolean(
-      patch.labelGenerated !== undefined
-        ? patch.labelGenerated
-        : current.labelGenerated,
-    ),
-    serviceId: Number.isFinite(Number(patch.serviceId))
-      ? Number(patch.serviceId)
-      : (Number.isFinite(Number(current.serviceId)) ? Number(current.serviceId) : null),
-    serviceName: String(patch.serviceName || current.serviceName || "").trim(),
-    companyName: String(patch.companyName || current.companyName || "").trim(),
-    errors: Array.isArray(patch.errors)
-      ? patch.errors.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
-      : (Array.isArray(current.errors) ? current.errors : []),
-    attempts: Math.max(
-      0,
-      Math.floor(Number(patch.attempts ?? current.attempts ?? 0) || 0),
-    ),
-    createdAt: String(current.createdAt || now),
-    updatedAt: now,
-    lastAttemptAt: String(patch.lastAttemptAt || current.lastAttemptAt || now),
-    timeline: [...timelineCurrent, ...timelinePatch].slice(-200),
-  };
-
-  all[key] = next;
-  await writeShippingOrders(all);
-  return next;
-}
-
-async function getShippingOrderRecordByPaymentId(paymentId) {
-  const key = String(paymentId || "").trim();
-  if (!key) return null;
-  const all = await readShippingOrders();
-  const entry = all[key];
-  if (!entry || typeof entry !== "object") return null;
-  return entry;
 }
 
 function normalizePhone(value) {
@@ -711,41 +694,59 @@ function resolveMelhorEnvioRedirectUri(req) {
   return `${base}${pathname}`;
 }
 
+
+
+
+
+
 async function readMelhorEnvioToken() {
-  const parsed = await readJson(MELHOR_ENVIO_TOKEN_FILE, null);
-  if (!parsed || typeof parsed !== "object") return null;
-  return parsed;
+  try {
+    const db = await connectDB();
+    const doc = await db.collection("integrations").findOne({ _id: "melhor_envio_token" });
+    return doc ? doc.token : null;
+  } catch { return null; }
 }
 
 async function writeMelhorEnvioToken(token = null) {
+  const db = await connectDB();
   if (!token) {
-    try {
-      await fs.unlink(MELHOR_ENVIO_TOKEN_FILE);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
+    await db.collection("integrations").deleteOne({ _id: "melhor_envio_token" });
     return;
   }
-  await writeJson(MELHOR_ENVIO_TOKEN_FILE, token);
+  await db.collection("integrations").updateOne(
+    { _id: "melhor_envio_token" },
+    { $set: { token } },
+    { upsert: true }
+  );
 }
 
 async function readMelhorEnvioOAuthState() {
-  const parsed = await readJson(MELHOR_ENVIO_OAUTH_STATE_FILE, null);
-  if (!parsed || typeof parsed !== "object") return null;
-  return parsed;
+  try {
+    const db = await connectDB();
+    const doc = await db.collection("integrations").findOne({ _id: "melhor_envio_oauth_state" });
+    return doc ? doc.state : null;
+  } catch { return null; }
 }
 
 async function writeMelhorEnvioOAuthState(state = null) {
+  const db = await connectDB();
   if (!state) {
-    try {
-      await fs.unlink(MELHOR_ENVIO_OAUTH_STATE_FILE);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
+    await db.collection("integrations").deleteOne({ _id: "melhor_envio_oauth_state" });
     return;
   }
-  await writeJson(MELHOR_ENVIO_OAUTH_STATE_FILE, state);
+  await db.collection("integrations").updateOne(
+    { _id: "melhor_envio_oauth_state" },
+    { $set: { state } },
+    { upsert: true }
+  );
 }
+
+
+
+
+
+
+
 
 function normalizeMelhorEnvioTokenPayload(payload = {}, current = null) {
   const now = Date.now();
@@ -1019,13 +1020,31 @@ function sanitizeProduct(product = {}) {
   };
 }
 
+// ==========================================================
+// PRODUTOS, CONTEÚDO E LOGS (Conexão MongoDB)
+// ==========================================================
+
 async function readProducts() {
-  const parsed = await readJson(PRODUCTS_FILE, []);
-  return Array.isArray(parsed) ? parsed.map(sanitizeProduct) : [];
+  try {
+    const db = await connectDB();
+    const products = await db.collection("products").find({}).toArray();
+    return products.map(sanitizeProduct);
+  } catch (error) {
+    console.error("Erro ao ler produtos:", error);
+    return [];
+  }
 }
 
 async function writeProducts(products) {
-  await writeJson(PRODUCTS_FILE, products.map(sanitizeProduct));
+  try {
+    const db = await connectDB();
+    await db.collection("products").deleteMany({});
+    if (products.length > 0) {
+      await db.collection("products").insertMany(products.map(sanitizeProduct));
+    }
+  } catch (error) {
+    console.error("Erro ao salvar produtos:", error);
+  }
 }
 
 function sanitizeSlide(slide = {}) {
@@ -1047,38 +1066,48 @@ async function readSiteContent() {
     featuredProductId: "",
     carousel: [],
   };
-
-  const parsed = await readJson(CONTENT_FILE, fallback);
-  return {
-    benefitText: String(parsed.benefitText || fallback.benefitText),
-    featuredProductId: String(parsed.featuredProductId || ""),
-    carousel: Array.isArray(parsed.carousel) ? parsed.carousel.map(sanitizeSlide) : [],
-  };
+  try {
+    const db = await connectDB();
+    const content = await db.collection("settings").findOne({ _id: "site_content" });
+    if (!content) return fallback;
+    return {
+      benefitText: String(content.benefitText || fallback.benefitText),
+      featuredProductId: String(content.featuredProductId || ""),
+      carousel: Array.isArray(content.carousel) ? content.carousel.map(sanitizeSlide) : [],
+    };
+  } catch (error) { return fallback; }
 }
 
 async function writeSiteContent(content) {
-  await writeJson(CONTENT_FILE, {
-    benefitText: String(content.benefitText || "Frete Rapido e garantia de 3 anos").trim(),
-    featuredProductId: String(content.featuredProductId || "").trim(),
-    carousel: Array.isArray(content.carousel) ? content.carousel.map(sanitizeSlide) : [],
-  });
+  try {
+    const db = await connectDB();
+    const data = {
+      benefitText: String(content.benefitText || "Frete Rapido e garantia de 3 anos").trim(),
+      featuredProductId: String(content.featuredProductId || "").trim(),
+      carousel: Array.isArray(content.carousel) ? content.carousel.map(sanitizeSlide) : [],
+    };
+    await db.collection("settings").updateOne({ _id: "site_content" }, { $set: data }, { upsert: true });
+  } catch (error) { console.error("Erro ao salvar conteúdo:", error); }
 }
 
 async function readSearchLog() {
-  const parsed = await readJson(SEARCH_LOG_FILE, []);
-  return Array.isArray(parsed) ? parsed : [];
+  try {
+    const db = await connectDB();
+    return await db.collection("search_logs").find({}).sort({ at: -1 }).limit(100).toArray();
+  } catch (error) { return []; }
 }
 
 async function appendSearchLog(entry = {}) {
-  const current = await readSearchLog();
-  current.unshift({
-    query: String(entry.query || "").trim(),
-    normalizedQuery: String(entry.normalizedQuery || "").trim(),
-    resultCount: Number.isFinite(Number(entry.resultCount)) ? Number(entry.resultCount) : 0,
-    page: String(entry.page || "").trim() || "home",
-    at: String(entry.at || new Date().toISOString()),
-  });
-  await writeJson(SEARCH_LOG_FILE, current.slice(0, 2000));
+  try {
+    const db = await connectDB();
+    await db.collection("search_logs").insertOne({
+      query: String(entry.query || "").trim(),
+      normalizedQuery: String(entry.normalizedQuery || "").trim(),
+      resultCount: Number.isFinite(Number(entry.resultCount)) ? Number(entry.resultCount) : 0,
+      page: String(entry.page || "").trim() || "home",
+      at: String(entry.at || new Date().toISOString()),
+    });
+  } catch (error) { console.error("Erro ao salvar log de busca:", error); }
 }
 
 function parseJsonField(value, fallback) {
