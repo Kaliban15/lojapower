@@ -441,7 +441,7 @@ function render() {
   if (content.carousel.length) {
     carouselEl.innerHTML = content.carousel.map(slideHtml).join("");
   } else {
-    carouselEl.innerHTML = '<p class="empty-note">Nenhum card de carrossel configurado.</p>';
+    carouselEl.innerHTML = '<p class="empty-note">Nenhum card de carrossel configurado ainda.</p>';
   }
 
   const byCategory = filterByCategory(state.products);
