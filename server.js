@@ -3737,12 +3737,13 @@ function createApp() {
   app.post("/api/upload-images", upload.array("images", 10), (req, res) => {
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) {
-      return res.status(400).json({ message: "Arquivos de imagem nao enviados." });
+      return res.status(400).json({ message: "Arquivos de imagem não enviados." });
     }
 
-    const images = files.map((file) => `/uploads/${file.filename}`);
+    // O Cloudinary já entrega a URL completa em file.path
+    const images = files.map((file) => file.path); 
     return res.status(201).json({ images });
-  });
+});
 
   app.get("/api/products", async (_req, res) => {
     try {
@@ -3766,7 +3767,10 @@ function createApp() {
     }
   });
 
-  app.post("/api/products", async (req, res) => {
+  app.post("/api/products", upload.array("images", 10), async (req, res) => {
+    // 1. Aqui pegamos as URLs que o Cloudinary gerou (https://...)
+    const cloudImages = req.files ? req.files.map(f => f.path) : [];
+    
     const input = mapProductInput(req.body || {});
 
     if (!input.title || !input.description) {
@@ -3789,12 +3793,7 @@ function createApp() {
       return res.status(400).json({ message: "Selecione pelo menos uma categoria." });
     }
 
-    if (input.images.length > 10) {
-      return res.status(400).json({ message: "Limite de 10 imagens por produto." });
-    }
-
     try {
-      const products = await readProducts();
       const product = sanitizeProduct({
         id: `p-${Date.now()}`,
         title: input.title,
@@ -3802,7 +3801,9 @@ function createApp() {
         price: Number(input.price.toFixed(2)),
         promoPrice: promo === null ? null : Number(promo.toFixed(2)),
         categories: input.categories,
-        images: input.images,
+        // 2. AQUI A MUDANÇA: Se houver upload novo, usa os links do Cloudinary.
+        // Se não, usa as imagens que já estavam no corpo (se houver).
+        images: cloudImages.length > 0 ? cloudImages : (input.images || []),
         bullets: input.bullets,
         trustCards: input.trustCards,
         variations: input.variations,
@@ -3810,17 +3811,22 @@ function createApp() {
         createdAt: new Date().toISOString(),
       });
 
+      const products = await readProducts();
       products.unshift(product);
       await writeProducts(products);
 
       return res.status(201).json(product);
     } catch (error) {
+      console.error("Erro no cadastro:", error);
       return res.status(500).json({ message: "Erro ao salvar produto." });
     }
-  });
-
-  app.put("/api/products/:id", async (req, res) => {
+});
+app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
     const { id } = req.params;
+    
+    // 1. Captura novas imagens enviadas via Cloudinary
+    const newCloudImages = req.files ? req.files.map(f => f.path) : [];
+    
     const input = mapProductInput(req.body || {});
 
     if (!input.title || !input.description) {
@@ -3841,10 +3847,6 @@ function createApp() {
 
     if (!input.categories.length) {
       return res.status(400).json({ message: "Selecione pelo menos uma categoria." });
-    }
-
-    if (input.images.length > 10) {
-      return res.status(400).json({ message: "Limite de 10 imagens por produto." });
     }
 
     try {
@@ -3855,6 +3857,9 @@ function createApp() {
         return res.status(404).json({ message: "Produto nao encontrado." });
       }
 
+      // 2. Se subiu fotos novas, usa elas. Se não, mantém as fotos antigas que vieram no input.images
+      const finalImages = newCloudImages.length > 0 ? newCloudImages : (input.images || []);
+
       products[idx] = sanitizeProduct({
         ...products[idx],
         title: input.title,
@@ -3862,7 +3867,7 @@ function createApp() {
         price: Number(input.price.toFixed(2)),
         promoPrice: promo === null ? null : Number(promo.toFixed(2)),
         categories: input.categories,
-        images: input.images,
+        images: finalImages, // Agora com link HTTPS eterno
         bullets: input.bullets,
         trustCards: input.trustCards,
         variations: input.variations,
@@ -3872,9 +3877,10 @@ function createApp() {
       await writeProducts(products);
       return res.json(products[idx]);
     } catch (error) {
+      console.error("Erro na edição:", error);
       return res.status(500).json({ message: "Erro ao atualizar produto." });
     }
-  });
+});
 
   app.delete("/api/products/:id", async (req, res) => {
     const { id } = req.params;

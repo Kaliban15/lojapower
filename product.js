@@ -401,7 +401,15 @@ function renderSidebar() {
 }
 
 function safeImageUrl(url) {
-  return String(url || "").trim().replace(/\\/g, "/");
+  let cleanUrl = String(url || "").trim().replace(/\\/g, "/");
+  
+  // BLINDAGEM: Se o link vier do banco com o prefixo /uploads/ grudado no https
+  // nós removemos o lixo aqui no frontend automaticamente.
+  if (cleanUrl.includes("/uploads/https://")) {
+    return cleanUrl.replace("/uploads/", "");
+  }
+  
+  return cleanUrl;
 }
 
 function round2(value) {
