@@ -9,8 +9,10 @@ const benefitInput = document.getElementById("benefitInput");
 const featuredProductSelect = document.getElementById("featuredProductSelect");
 const slidesEditor = document.getElementById("slidesEditor");
 const addSlideBtn = document.getElementById("addSlideBtn");
+const addCreateVariationBtn = document.getElementById("addCreateVariationBtn");
 const createCategories = document.getElementById("createCategories");
 const createImageOrder = document.getElementById("createImageOrder");
+const createVariationsEditor = document.getElementById("createVariationsEditor");
 const shippingConfigForm = document.getElementById("shippingConfigForm");
 const shippingMessage = document.getElementById("shippingMessage");
 const meStatusText = document.getElementById("meStatusText");
@@ -52,6 +54,9 @@ const state = {
   shippingConfig: null,
   melhorEnvioStatus: null,
   createDraftImages: [],
+  createVariationDrafts: [],
+  editDraftImagesByProduct: {},
+  editVariationDraftsByProduct: {},
 };
 
 function showMessage(target, text, type) {
@@ -190,6 +195,312 @@ function mediaPreviewHtml(url, alt, mimeHint = "") {
   return `<img src="${safeUrl}" alt="${safeAlt}" />`;
 }
 
+function createLocalId(prefix = "id") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function getVariationLabel(variation = {}) {
+  const name = String(variation.name || "").trim();
+  const value = String(variation.value || variation.title || "").trim();
+  if (name && value) return `${name}: ${value}`;
+  return value || name || "Variacao";
+}
+
+function normalizeVariationDraft(raw = {}) {
+  const images = Array.isArray(raw.images)
+    ? raw.images.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 10)
+    : [];
+  const price = Number(raw.price);
+  const stock = Number(raw.stock);
+  const label = getVariationLabel(raw);
+  const [fallbackName = "", fallbackValue = ""] = label.includes(":")
+    ? label.split(":")
+    : ["Opcao", label];
+
+  return {
+    id: String(raw.id || createLocalId("v")),
+    name: String(raw.name || "").trim() || String(fallbackName || "Opcao").trim(),
+    value: String(raw.value || raw.title || "").trim() || String(fallbackValue || "").trim(),
+    priceText: Number.isFinite(price) && price > 0 ? String(price).replace(".", ",") : "",
+    stockText: Number.isFinite(stock) ? String(Math.max(0, Math.floor(stock))) : "0",
+    mediaItems: images.map((url) => ({
+      kind: "url",
+      url,
+    })),
+  };
+}
+
+function createEmptyVariationDraft() {
+  return {
+    id: createLocalId("v"),
+    name: "Opcao",
+    value: "",
+    priceText: "",
+    stockText: "0",
+    mediaItems: [],
+  };
+}
+
+function getVariationDrafts(scope, productId = "") {
+  if (scope === "edit") {
+    const key = String(productId || "").trim();
+    if (!key) return [];
+    if (!Array.isArray(state.editVariationDraftsByProduct[key])) {
+      state.editVariationDraftsByProduct[key] = [];
+    }
+    return state.editVariationDraftsByProduct[key];
+  }
+  return state.createVariationDrafts;
+}
+
+function setVariationDrafts(scope, drafts, productId = "") {
+  if (scope === "edit") {
+    const key = String(productId || "").trim();
+    if (!key) return;
+    state.editVariationDraftsByProduct[key] = drafts;
+    return;
+  }
+  state.createVariationDrafts = drafts;
+}
+
+function variationMediaListHtml(variation, scope, productId = "") {
+  const mediaItems = Array.isArray(variation.mediaItems) ? variation.mediaItems : [];
+  if (!mediaItems.length) {
+    return '<p class="mini-note">Sem midias nesta variacao.</p>';
+  }
+
+  return `
+    <div class="img-order-grid">
+      ${mediaItems.map((item, index) => {
+        const previewUrl = item.kind === "file" ? item.previewUrl : item.url;
+        const mimeHint = item.kind === "file" ? item.mediaType : "";
+        return `
+          <div class="img-order-item">
+            ${mediaPreviewHtml(previewUrl, `Midia da variacao ${index + 1}`, mimeHint)}
+            <div class="img-order-actions">
+              <button type="button" class="img-btn" data-variation-media-action="left" data-variation-media-index="${index}" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" title="Mover para esquerda">◀</button>
+              <button type="button" class="img-btn" data-variation-media-action="right" data-variation-media-index="${index}" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" title="Mover para direita">▶</button>
+              <button type="button" class="img-btn" data-variation-media-action="remove" data-variation-media-index="${index}" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" title="Remover">✕</button>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function variationCardHtml(variation, scope, productId = "") {
+  return `
+    <article class="variation-item" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}">
+      <div class="variation-head">
+        <strong>${escapeHtml(getVariationLabel(variation))}</strong>
+        <button type="button" class="btn btn-danger variation-remove-btn" data-remove-variation="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}">Remover</button>
+      </div>
+      <div class="variation-grid">
+        <label>
+          Nome da variacao
+          <input type="text" data-variation-field="name" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" value="${escapeHtml(variation.name)}" placeholder="Cor" />
+        </label>
+        <label>
+          Valor
+          <input type="text" data-variation-field="value" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" value="${escapeHtml(variation.value)}" placeholder="Preto" />
+        </label>
+        <label>
+          Preco da variacao (opcional)
+          <input type="text" data-variation-field="priceText" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" value="${escapeHtml(variation.priceText)}" placeholder="299,90" />
+        </label>
+        <label>
+          Estoque da variacao
+          <input type="number" min="0" step="1" data-variation-field="stockText" data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" value="${escapeHtml(variation.stockText)}" />
+        </label>
+      </div>
+      <label class="variation-upload">
+        Midias da variacao (imagens/videos)
+        <input type="file" data-variation-upload data-variation-id="${variation.id}" data-variation-scope="${scope}" data-product-id="${escapeHtml(productId)}" accept="image/*,video/*" multiple />
+      </label>
+      <div data-variation-media-list="${variation.id}">
+        ${variationMediaListHtml(variation, scope, productId)}
+      </div>
+    </article>
+  `;
+}
+
+function renderVariationsEditor(scope, productId = "") {
+  const drafts = getVariationDrafts(scope, productId);
+  const html = drafts.length
+    ? drafts.map((variation) => variationCardHtml(variation, scope, productId)).join("")
+    : '<p class="mini-note">Nenhuma variacao adicionada.</p>';
+
+  if (scope === "edit") {
+    const card = Array.from(productList.querySelectorAll(".product-item"))
+      .find((item) => String(item.getAttribute("data-product-id") || "") === String(productId || ""));
+    const container = card?.querySelector("[data-variations-editor]");
+    if (container) container.innerHTML = html;
+    return;
+  }
+
+  if (!createVariationsEditor) return;
+  createVariationsEditor.innerHTML = html;
+}
+
+function addVariationDraft(scope, productId = "") {
+  const drafts = [...getVariationDrafts(scope, productId)];
+  drafts.push(createEmptyVariationDraft());
+  setVariationDrafts(scope, drafts, productId);
+  renderVariationsEditor(scope, productId);
+}
+
+function removeVariationDraft(scope, productId, variationId) {
+  const drafts = [...getVariationDrafts(scope, productId)];
+  const next = drafts.filter((item) => String(item.id) !== String(variationId));
+  for (const item of drafts) {
+    if (String(item.id) !== String(variationId)) continue;
+    for (const media of item.mediaItems || []) {
+      if (media.kind === "file" && String(media.previewUrl || "").startsWith("blob:")) {
+        URL.revokeObjectURL(media.previewUrl);
+      }
+    }
+  }
+  setVariationDrafts(scope, next, productId);
+  renderVariationsEditor(scope, productId);
+}
+
+function updateVariationDraftField(scope, productId, variationId, field, value) {
+  const drafts = [...getVariationDrafts(scope, productId)];
+  const index = drafts.findIndex((item) => String(item.id) === String(variationId));
+  if (index < 0) return;
+  drafts[index] = {
+    ...drafts[index],
+    [field]: String(value || ""),
+  };
+  setVariationDrafts(scope, drafts, productId);
+}
+
+function addVariationMediaFiles(scope, productId, variationId, files) {
+  const drafts = [...getVariationDrafts(scope, productId)];
+  const index = drafts.findIndex((item) => String(item.id) === String(variationId));
+  if (index < 0) return;
+
+  const selected = Array.from(files || []).filter((file) => file && file.size > 0);
+  if (!selected.length) return;
+
+  const currentMedia = Array.isArray(drafts[index].mediaItems) ? drafts[index].mediaItems : [];
+  const capacity = 10 - currentMedia.length;
+  const accepted = selected.slice(0, Math.max(0, capacity));
+
+  drafts[index] = {
+    ...drafts[index],
+    mediaItems: [
+      ...currentMedia,
+      ...accepted.map((file) => ({
+        kind: "file",
+        file,
+        mediaType: String(file.type || "").trim(),
+        previewUrl: URL.createObjectURL(file),
+      })),
+    ],
+  };
+
+  setVariationDrafts(scope, drafts, productId);
+  renderVariationsEditor(scope, productId);
+}
+
+function moveItemInArray(list, index, direction) {
+  const next = [...list];
+  if (direction === "left" && index > 0) {
+    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+  }
+  if (direction === "right" && index < next.length - 1) {
+    [next[index + 1], next[index]] = [next[index], next[index + 1]];
+  }
+  return next;
+}
+
+function applyVariationMediaAction(scope, productId, variationId, action, index) {
+  const drafts = [...getVariationDrafts(scope, productId)];
+  const variationIndex = drafts.findIndex((item) => String(item.id) === String(variationId));
+  if (variationIndex < 0) return;
+
+  const mediaItems = Array.isArray(drafts[variationIndex].mediaItems)
+    ? [...drafts[variationIndex].mediaItems]
+    : [];
+  if (!mediaItems.length) return;
+
+  if (action === "remove") {
+    const [removed] = mediaItems.splice(index, 1);
+    if (removed?.kind === "file" && String(removed.previewUrl || "").startsWith("blob:")) {
+      URL.revokeObjectURL(removed.previewUrl);
+    }
+  } else {
+    const moved = moveItemInArray(mediaItems, index, action);
+    mediaItems.splice(0, mediaItems.length, ...moved);
+  }
+
+  drafts[variationIndex] = {
+    ...drafts[variationIndex],
+    mediaItems,
+  };
+  setVariationDrafts(scope, drafts, productId);
+  renderVariationsEditor(scope, productId);
+}
+
+function revokeVariationDrafts(drafts = []) {
+  for (const variation of drafts) {
+    for (const media of variation?.mediaItems || []) {
+      if (media?.kind === "file" && String(media.previewUrl || "").startsWith("blob:")) {
+        URL.revokeObjectURL(media.previewUrl);
+      }
+    }
+  }
+}
+
+async function buildVariationPayloadFromDrafts(drafts = []) {
+  const list = Array.isArray(drafts) ? drafts : [];
+  const payload = [];
+
+  for (const draft of list) {
+    const name = String(draft?.name || "").trim();
+    const value = String(draft?.value || "").trim();
+    const stockRaw = Number(String(draft?.stockText || "").replace(/[^\d-]/g, ""));
+    const stock = Number.isFinite(stockRaw) ? Math.max(0, Math.floor(stockRaw)) : Number.NaN;
+    const priceNumber = normalizePrice(String(draft?.priceText || "").trim());
+    const price = Number.isFinite(priceNumber) && priceNumber > 0 ? Number(priceNumber.toFixed(2)) : null;
+
+    if (!name && !value) continue;
+    if (!name || !value) {
+      throw new Error("Preencha nome e valor em todas as variacoes.");
+    }
+    if (!Number.isFinite(stock)) {
+      throw new Error(`Estoque invalido para a variacao "${getVariationLabel(draft)}".`);
+    }
+
+    const mediaItems = Array.isArray(draft.mediaItems) ? draft.mediaItems.slice(0, 10) : [];
+    const files = mediaItems.filter((item) => item.kind === "file").map((item) => item.file);
+    const uploaded = files.length ? await uploadImages(files) : [];
+    let uploadIndex = 0;
+    const images = mediaItems
+      .map((item) => {
+        if (item.kind === "url") return String(item.url || "").trim();
+        const nextUrl = uploaded[uploadIndex] || "";
+        uploadIndex += 1;
+        return String(nextUrl || "").trim();
+      })
+      .filter(Boolean)
+      .slice(0, 10);
+
+    payload.push({
+      id: String(draft.id || createLocalId("v")),
+      name,
+      value,
+      price,
+      stock,
+      images,
+    });
+  }
+
+  return payload;
+}
+
 function parseBullets(text) {
   const lines = String(text || "")
     .split("\n")
@@ -214,40 +525,6 @@ function parseTrustCards(text) {
 function trustCardsToText(cards) {
   if (!Array.isArray(cards)) return "";
   return cards.map((card) => `${card.title || ""}|${card.description || ""}`.trim()).join("\n");
-}
-
-function parseVariations(text) {
-  return String(text || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [title = "", price = "", promoPrice = "", images = ""] = line.split("|");
-      const imageList = images
-        .split(",")
-        .map((img) => img.trim())
-        .filter(Boolean)
-        .slice(0, 10);
-      return {
-        title: title.trim(),
-        price: normalizePrice(price),
-        promoPrice: promoPrice.trim() ? normalizePrice(promoPrice) : "",
-        images: imageList,
-      };
-    })
-    .filter((v) => v.title && Number.isFinite(v.price) && v.price > 0);
-}
-
-function variationsToText(variations) {
-  if (!Array.isArray(variations)) return "";
-  return variations
-    .map((v) => {
-      const price = Number(v.price || 0);
-      const promo = v.promoPrice ? Number(v.promoPrice) : null;
-      const images = Array.isArray(v.images) ? v.images.join(",") : "";
-      return `${v.title || ""}|${price || ""}|${promo || ""}|${images}`.trim();
-    })
-    .join("\n");
 }
 
 function renderCategoryChecks(container, selected = []) {
@@ -495,6 +772,48 @@ function createDraftImageEditorHtml(items) {
   `;
 }
 
+function getEditDraftImages(productId) {
+  const key = String(productId || "").trim();
+  if (!key) return [];
+  if (!Array.isArray(state.editDraftImagesByProduct[key])) {
+    state.editDraftImagesByProduct[key] = [];
+  }
+  return state.editDraftImagesByProduct[key];
+}
+
+function setEditDraftImages(productId, items) {
+  const key = String(productId || "").trim();
+  if (!key) return;
+  state.editDraftImagesByProduct[key] = items;
+}
+
+function editDraftImageEditorHtml(items, productId) {
+  if (!items.length) return '<p class="mini-note">Nenhuma nova midia selecionada.</p>';
+
+  return `
+    <div class="img-order-grid">
+      ${items.map((item, index) => `
+        <div class="img-order-item">
+          ${mediaPreviewHtml(item.previewUrl, `Nova midia ${index + 1}`, item.mediaType)}
+          <div class="img-order-actions">
+            <button type="button" class="img-btn" data-edit-draft-action="left" data-edit-draft-index="${index}" data-product-id="${escapeHtml(productId)}" title="Mover para esquerda">◀</button>
+            <button type="button" class="img-btn" data-edit-draft-action="right" data-edit-draft-index="${index}" data-product-id="${escapeHtml(productId)}" title="Mover para direita">▶</button>
+            <button type="button" class="img-btn" data-edit-draft-action="remove" data-edit-draft-index="${index}" data-product-id="${escapeHtml(productId)}" title="Remover">✕</button>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderEditDraftImages(card) {
+  const productId = String(card?.dataset?.productId || "").trim();
+  if (!productId) return;
+  const container = card.querySelector("[data-edit-draft-images]");
+  if (!container) return;
+  container.innerHTML = editDraftImageEditorHtml(getEditDraftImages(productId), productId);
+}
+
 function renderCreateDraftImages() {
   createImageOrder.innerHTML = createDraftImageEditorHtml(state.createDraftImages);
 }
@@ -509,11 +828,19 @@ function clearCreateDraftImages() {
   renderCreateDraftImages();
 }
 
+function clearCreateVariationDrafts() {
+  revokeVariationDrafts(state.createVariationDrafts);
+  state.createVariationDrafts = [];
+  renderVariationsEditor("create");
+}
+
 function productItemTemplate(product) {
   const images = Array.isArray(product.images) ? product.images : [];
+  const productId = String(product.id || "");
+  const variationDrafts = getVariationDrafts("edit", productId);
 
   return `
-    <article class="product-item" data-product-id="${product.id}" data-images='${escapeHtml(JSON.stringify(images))}'>
+    <article class="product-item" data-product-id="${productId}" data-images='${escapeHtml(JSON.stringify(images))}'>
       <form class="form-grid product-edit-form">
         <label>
           Titulo
@@ -536,6 +863,8 @@ function productItemTemplate(product) {
         </label>
         <p class="mini-note">Use os controles abaixo para ordenar/remover as midias atuais.</p>
         <div data-image-order>${imageOrderEditorHtml(images)}</div>
+        <p class="mini-note">Novas midias selecionadas para upload:</p>
+        <div data-edit-draft-images>${editDraftImageEditorHtml(getEditDraftImages(productId), productId)}</div>
 
         <label>
           Valor
@@ -562,10 +891,15 @@ function productItemTemplate(product) {
           <textarea name="trustCardsText" rows="5">${escapeHtml(trustCardsToText(product.trustCards))}</textarea>
         </label>
 
-        <label>
-          Variacoes (1 por linha: Titulo|Preco|PrecoPromocional|midia1,midia2)
-          <textarea name="variationsText" rows="5">${escapeHtml(variationsToText(product.variations))}</textarea>
-        </label>
+        <div class="variation-builder">
+          <div class="section-head">
+            <h3>Variacoes</h3>
+            <button type="button" class="btn btn-light" data-add-edit-variation="${escapeHtml(productId)}">Adicionar variacao</button>
+          </div>
+          <div data-variations-editor>
+            ${variationDrafts.length ? variationDrafts.map((variation) => variationCardHtml(variation, "edit", productId)).join("") : '<p class="mini-note">Nenhuma variacao adicionada.</p>'}
+          </div>
+        </div>
 
         <div class="shipping-box">
           <strong>Pacote para frete</strong>
@@ -608,6 +942,28 @@ function renderProductsList() {
     productList.innerHTML = '<p class="empty">Nenhum produto cadastrado ainda.</p>';
     return;
   }
+
+  for (const list of Object.values(state.editDraftImagesByProduct || {})) {
+    for (const item of Array.isArray(list) ? list : []) {
+      if (String(item?.previewUrl || "").startsWith("blob:")) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    }
+  }
+  for (const list of Object.values(state.editVariationDraftsByProduct || {})) {
+    revokeVariationDrafts(Array.isArray(list) ? list : []);
+  }
+
+  const nextEditDraftImages = {};
+  const nextEditVariationDrafts = {};
+  for (const product of state.products) {
+    const key = String(product?.id || "").trim();
+    if (!key) continue;
+    nextEditDraftImages[key] = [];
+    nextEditVariationDrafts[key] = (Array.isArray(product.variations) ? product.variations : []).map(normalizeVariationDraft);
+  }
+  state.editDraftImagesByProduct = nextEditDraftImages;
+  state.editVariationDraftsByProduct = nextEditVariationDrafts;
 
   productList.innerHTML = state.products.map(productItemTemplate).join("");
 }
@@ -695,6 +1051,7 @@ async function reloadAll() {
   renderSlidesEditor();
   renderProductsList();
   renderCreateDraftImages();
+  renderVariationsEditor("create");
   renderShippingPanel();
 }
 
@@ -713,6 +1070,14 @@ productForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  let variationPayload = [];
+  try {
+    variationPayload = await buildVariationPayloadFromDrafts(state.createVariationDrafts);
+  } catch (error) {
+    showMessage(formMessage, error.message || "Falha ao montar variacoes.", "error");
+    return;
+  }
+
   const promoRaw = String(formData.get("promoPrice") || "").trim();
   const payload = {
     title: String(formData.get("title") || "").trim(),
@@ -723,7 +1088,7 @@ productForm.addEventListener("submit", async (event) => {
     description: String(formData.get("description") || "").trim(),
     bullets: parseBullets(formData.get("bulletsText")),
     trustCards: parseTrustCards(formData.get("trustCardsText")),
-    variations: parseVariations(formData.get("variationsText")),
+    variations: variationPayload,
     shipping: parseShippingPackageFromForm(
       formData,
       normalizePrice(formData.get("promoPrice")) || normalizePrice(formData.get("price")),
@@ -746,6 +1111,7 @@ productForm.addEventListener("submit", async (event) => {
 
     productForm.reset();
     clearCreateDraftImages();
+    clearCreateVariationDrafts();
     renderCategoryChecks(createCategories, []);
     showMessage(formMessage, "Produto salvo com sucesso.", "success");
     await reloadAll();
@@ -822,6 +1188,55 @@ productList.addEventListener("click", async (event) => {
     return;
   }
 
+  const editDraftBtn = event.target.closest("[data-edit-draft-action]");
+  if (editDraftBtn) {
+    const productId = String(editDraftBtn.getAttribute("data-product-id") || "").trim();
+    const action = String(editDraftBtn.getAttribute("data-edit-draft-action") || "").trim();
+    const index = Number(editDraftBtn.getAttribute("data-edit-draft-index"));
+    const current = [...getEditDraftImages(productId)];
+
+    if (action === "remove") {
+      const [removed] = current.splice(index, 1);
+      if (removed?.previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      setEditDraftImages(productId, current);
+    } else {
+      setEditDraftImages(productId, moveImage(current, index, action));
+    }
+
+    const card = editDraftBtn.closest(".product-item");
+    if (card) renderEditDraftImages(card);
+    return;
+  }
+
+  const addEditVariation = event.target.closest("[data-add-edit-variation]");
+  if (addEditVariation) {
+    const productId = String(addEditVariation.getAttribute("data-add-edit-variation") || "").trim();
+    addVariationDraft("edit", productId);
+    return;
+  }
+
+  const removeVariationBtn = event.target.closest("[data-remove-variation]");
+  if (removeVariationBtn) {
+    const variationId = String(removeVariationBtn.getAttribute("data-remove-variation") || "").trim();
+    const scope = String(removeVariationBtn.getAttribute("data-variation-scope") || "edit").trim();
+    const productId = String(removeVariationBtn.getAttribute("data-product-id") || "").trim();
+    removeVariationDraft(scope, productId, variationId);
+    return;
+  }
+
+  const variationMediaBtn = event.target.closest("[data-variation-media-action]");
+  if (variationMediaBtn) {
+    const action = String(variationMediaBtn.getAttribute("data-variation-media-action") || "").trim();
+    const index = Number(variationMediaBtn.getAttribute("data-variation-media-index"));
+    const variationId = String(variationMediaBtn.getAttribute("data-variation-id") || "").trim();
+    const scope = String(variationMediaBtn.getAttribute("data-variation-scope") || "edit").trim();
+    const productId = String(variationMediaBtn.getAttribute("data-product-id") || "").trim();
+    applyVariationMediaAction(scope, productId, variationId, action, index);
+    return;
+  }
+
   const saveBtn = event.target.closest("[data-save-product]");
   const deleteBtn = event.target.closest("[data-delete-product]");
 
@@ -832,7 +1247,7 @@ productList.addEventListener("click", async (event) => {
     const formData = new FormData(form);
 
     const currentImages = JSON.parse(card.dataset.images || "[]");
-    const files = formData.getAll("imageFiles").filter((item) => item && item.size > 0);
+    const files = getEditDraftImages(id).map((item) => item.file).filter(Boolean);
 
     let uploaded = [];
     try {
@@ -844,6 +1259,13 @@ productList.addEventListener("click", async (event) => {
 
     const mergedImages = [...currentImages, ...uploaded].slice(0, 10);
     const promoRaw = String(formData.get("promoPrice") || "").trim();
+    let variationPayload = [];
+    try {
+      variationPayload = await buildVariationPayloadFromDrafts(getVariationDrafts("edit", id));
+    } catch (error) {
+      showMessage(formMessage, error.message || "Falha ao montar variacoes.", "error");
+      return;
+    }
 
     const payload = {
       title: String(formData.get("title") || "").trim(),
@@ -854,7 +1276,7 @@ productList.addEventListener("click", async (event) => {
       description: String(formData.get("description") || "").trim(),
       bullets: parseBullets(formData.get("bulletsText")),
       trustCards: parseTrustCards(formData.get("trustCardsText")),
-      variations: parseVariations(formData.get("variationsText")),
+      variations: variationPayload,
       shipping: parseShippingPackageFromForm(
         formData,
         normalizePrice(formData.get("promoPrice")) || normalizePrice(formData.get("price")),
@@ -1002,6 +1424,98 @@ productForm.addEventListener("change", (event) => {
 
   renderCreateDraftImages();
   input.value = "";
+});
+
+addCreateVariationBtn?.addEventListener("click", () => {
+  addVariationDraft("create");
+});
+
+createVariationsEditor?.addEventListener("input", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const field = String(input.getAttribute("data-variation-field") || "").trim();
+  if (!field) return;
+  const variationId = String(input.getAttribute("data-variation-id") || "").trim();
+  const scope = String(input.getAttribute("data-variation-scope") || "create").trim();
+  const productId = String(input.getAttribute("data-product-id") || "").trim();
+  updateVariationDraftField(scope, productId, variationId, field, input.value);
+});
+
+createVariationsEditor?.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  if (!input.hasAttribute("data-variation-upload")) return;
+  const variationId = String(input.getAttribute("data-variation-id") || "").trim();
+  const scope = String(input.getAttribute("data-variation-scope") || "create").trim();
+  const productId = String(input.getAttribute("data-product-id") || "").trim();
+  addVariationMediaFiles(scope, productId, variationId, input.files || []);
+  input.value = "";
+});
+
+createVariationsEditor?.addEventListener("click", (event) => {
+  const removeVariationBtn = event.target.closest("[data-remove-variation]");
+  if (removeVariationBtn) {
+    const variationId = String(removeVariationBtn.getAttribute("data-remove-variation") || "").trim();
+    const scope = String(removeVariationBtn.getAttribute("data-variation-scope") || "create").trim();
+    const productId = String(removeVariationBtn.getAttribute("data-product-id") || "").trim();
+    removeVariationDraft(scope, productId, variationId);
+    return;
+  }
+
+  const variationMediaBtn = event.target.closest("[data-variation-media-action]");
+  if (variationMediaBtn) {
+    const action = String(variationMediaBtn.getAttribute("data-variation-media-action") || "").trim();
+    const index = Number(variationMediaBtn.getAttribute("data-variation-media-index"));
+    const variationId = String(variationMediaBtn.getAttribute("data-variation-id") || "").trim();
+    const scope = String(variationMediaBtn.getAttribute("data-variation-scope") || "create").trim();
+    const productId = String(variationMediaBtn.getAttribute("data-product-id") || "").trim();
+    applyVariationMediaAction(scope, productId, variationId, action, index);
+  }
+});
+
+productList.addEventListener("input", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const field = String(input.getAttribute("data-variation-field") || "").trim();
+  if (!field) return;
+  const variationId = String(input.getAttribute("data-variation-id") || "").trim();
+  const scope = String(input.getAttribute("data-variation-scope") || "edit").trim();
+  const productId = String(input.getAttribute("data-product-id") || "").trim();
+  updateVariationDraftField(scope, productId, variationId, field, input.value);
+});
+
+productList.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+
+  if (input.name === "imageFiles") {
+    const card = input.closest(".product-item");
+    if (!card) return;
+    const productId = String(card.dataset.productId || "").trim();
+    const selected = Array.from(input.files || []).filter((file) => file && file.size > 0);
+    if (!selected.length) return;
+
+    const current = [...getEditDraftImages(productId)];
+    const capacity = 10 - current.length;
+    const accepted = selected.slice(0, Math.max(0, capacity));
+    current.push(...accepted.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      mediaType: String(file.type || "").trim(),
+    })));
+    setEditDraftImages(productId, current);
+    renderEditDraftImages(card);
+    input.value = "";
+    return;
+  }
+
+  if (input.hasAttribute("data-variation-upload")) {
+    const variationId = String(input.getAttribute("data-variation-id") || "").trim();
+    const scope = String(input.getAttribute("data-variation-scope") || "edit").trim();
+    const productId = String(input.getAttribute("data-product-id") || "").trim();
+    addVariationMediaFiles(scope, productId, variationId, input.files || []);
+    input.value = "";
+  }
 });
 
 createImageOrder.addEventListener("click", (event) => {

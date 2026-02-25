@@ -132,9 +132,17 @@ function resolveBaseAmount() {
   return Number(discounted.toFixed(2));
 }
 
+function getVariationLabel(variation) {
+  const name = String(variation?.name || "").trim();
+  const value = String(variation?.value || variation?.title || "").trim();
+  if (name && value) return `${name}: ${value}`;
+  return value || name || "";
+}
+
 function getProductTitle() {
   if (!state.product) return "Produto";
-  if (state.variation?.title) return `${state.product.title} - ${state.variation.title}`;
+  const variationLabel = getVariationLabel(state.variation);
+  if (variationLabel) return `${state.product.title} - ${variationLabel}`;
   return state.product.title;
 }
 
@@ -351,6 +359,10 @@ function buildCheckoutPreferencePayload(formPayload, quote) {
       source: "shipping-page",
       productId: state.product?.id || state.productId || "",
       variationId: state.variation?.id || state.variationId || "",
+      variationName: String(state.variation?.name || "").trim(),
+      variationValue: String(state.variation?.value || state.variation?.title || "").trim(),
+      variationLabel: getVariationLabel(state.variation),
+      quantity: 1,
       couponCode: state.couponCode || "CLIENTE30",
       productAmount,
       shippingAmount,
@@ -423,6 +435,7 @@ function saveShippingSelection() {
     createdAt: new Date().toISOString(),
     productId: state.product?.id || state.productId || "",
     variationId: state.variation?.id || state.variationId || "",
+    variationLabel: getVariationLabel(state.variation),
     couponCode: state.couponCode || "CLIENTE30",
     discountRate: state.discountRate,
     productTitle: getProductTitle(),

@@ -70,10 +70,16 @@
           <textarea name="trustCardsText" rows="5" placeholder="Entrega no mesmo dia*|Em regioes elegiveis, pedido aprovado vai para expedicao expressa."></textarea>
         </label>
 
-        <label>
-          Variacoes (1 por linha: Titulo|Preco|PrecoPromocional|midia1,midia2)
-          <textarea name="variationsText" rows="5" placeholder="Preto|299,90|249,90|https://..."></textarea>
-        </label>
+        <div class="variation-builder">
+          <div class="section-head">
+            <h3>Variacoes</h3>
+            <button id="addCreateVariationBtn" type="button" class="btn btn-light">Adicionar variacao</button>
+          </div>
+          <div id="createVariationsEditor" class="variations-editor">
+            <p class="mini-note">Nenhuma variacao adicionada.</p>
+          </div>
+          <p class="mini-note">Cada variacao deve ter nome, valor, estoque e pode ter preco/midias proprias.</p>
+        </div>
 
         <div class="shipping-box">
           <strong>Dados do pacote para frete (Melhor Envio)</strong>

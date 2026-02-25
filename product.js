@@ -330,7 +330,8 @@ function parseParams() {
 function getActiveVariant() {
   const list = Array.isArray(state.product?.variations) ? state.product.variations : [];
   if (!list.length) return null;
-  return list.find((v) => v.id === state.activeVariationId) || list[0];
+  if (!state.activeVariationId) return null;
+  return list.find((v) => v.id === state.activeVariationId) || null;
 }
 
 function getEffectiveImages() {
@@ -368,10 +369,13 @@ async function loadProduct() {
 
     state.product = product;
     state.basePrice = Number(product.price || state.basePrice);
+    const variations = Array.isArray(product.variations) ? product.variations : [];
+    if (state.activeVariationId && !variations.some((variation) => variation.id === state.activeVariationId)) {
+      state.activeVariationId = "";
+    }
 
     const variant = getActiveVariant();
     if (variant) {
-      state.activeVariationId = variant.id;
       state.activeImage = Array.isArray(variant.images) && variant.images.length ? safeImageUrl(variant.images[0]) : "";
     }
 
@@ -427,6 +431,13 @@ function getFirstImageThumb(mediaList) {
     if (safeUrl && !isVideoUrl(safeUrl)) return safeUrl;
   }
   return "";
+}
+
+function getVariantLabel(variation) {
+  const name = String(variation?.name || "").trim();
+  const value = String(variation?.value || variation?.title || "").trim();
+  if (name && value) return `${name}: ${value}`;
+  return value || name || "Variacao";
 }
 
 function round2(value) {
@@ -498,10 +509,16 @@ function renderVariations() {
     return;
   }
 
-  elements.variationList.innerHTML = variations.map((variation) => {
-    const active = variation.id === state.activeVariationId ? "active" : "";
-    return `<button type="button" class="variation-btn ${active}" data-variation-id="${variation.id}">${escapeHtml(variation.title)}</button>`;
-  }).join("");
+  const baseActive = state.activeVariationId ? "" : "active";
+  const buttons = [
+    `<button type="button" class="variation-btn ${baseActive}" data-variation-id="">Produto principal</button>`,
+    ...variations.map((variation) => {
+      const active = variation.id === state.activeVariationId ? "active" : "";
+      return `<button type="button" class="variation-btn ${active}" data-variation-id="${variation.id}">${escapeHtml(getVariantLabel(variation))}</button>`;
+    }),
+  ];
+
+  elements.variationList.innerHTML = buttons.join("");
 }
 
 function updateThumbActiveState() {
@@ -543,7 +560,7 @@ function syncActiveImageFromTrack() {
 function pauseInactiveVideos() {
   const activeSafe = safeImageUrl(state.activeImage);
   elements.productTrack.querySelectorAll(".stage-video").forEach((video) => {
-    const source = safeImageUrl(video.getAttribute("src") || video.currentSrc || "");
+    const source = safeImageUrl(video.getAttribute("data-source") || video.getAttribute("src") || video.currentSrc || "");
     if (source !== activeSafe) {
       video.pause();
     }
@@ -566,7 +583,7 @@ function renderImages() {
 
   elements.productTrack.innerHTML = images.map((url, index) => {
     const safeUrl = safeImageUrl(url);
-    const optimizedUrl = optimizeMediaUrl(safeUrl); // <--- A mágica da otimização
+    const optimizedUrl = optimizeMediaUrl(safeUrl);
     const isVideo = isVideoUrl(safeUrl);
     const alt = `${state.product?.title || "Imagem do produto"} ${index + 1}`;
     const cardClass = index % 2 === 0 ? "stage-slide stage-slide-main" : "stage-slide stage-slide-alt";
@@ -578,7 +595,7 @@ function renderImages() {
 
     // Otimizamos o src do vídeo e da imagem
     const mediaMarkup = isVideo
-      ? `<video class="stage-video" src="${escapeHtml(optimizedUrl)}" aria-label="${escapeHtml(alt)}" controls playsinline preload="metadata"></video>`
+      ? `<video class="stage-video" src="${escapeHtml(optimizedUrl)}" data-source="${escapeHtml(safeUrl)}" aria-label="${escapeHtml(alt)}" controls playsinline preload="metadata"></video>`
       : `<img class="stage-image" src="${escapeHtml(optimizedUrl)}" alt="${escapeHtml(alt)}" draggable="false" loading="lazy" />`;
 
     return `
@@ -592,19 +609,17 @@ function renderImages() {
 
   elements.imageThumbs.innerHTML = images.map((url) => {
     const safeUrl = safeImageUrl(url);
-    const optimizedUrl = optimizeMediaUrl(safeUrl); // <--- Otimização aplicada aqui
+    const optimizedUrl = optimizeMediaUrl(safeUrl);
     const activeClass = safeUrl === safeImageUrl(active) ? "active" : "";
     
-// ... (trecho anterior do código)
     if (isVideoUrl(safeUrl)) {
       return `
         <button type="button" class="thumb-btn thumb-btn-video ${activeClass}" data-image="${escapeHtml(safeUrl)}">
-          <video src="${escapeHtml(optimizedUrl)}" aria-label="Miniatura do video" autoplay loop muted playsinline preload="metadata" style="pointer-events: none;"></video>
+          <video src="${escapeHtml(optimizedUrl)}" aria-label="Miniatura do video" autoplay loop muted playsinline preload="metadata"></video>
           <span class="thumb-video-badge">Video</span>
         </button>
       `;
     }
-// ... (restante do código)
     
     return `
       <button type="button" class="thumb-btn ${activeClass}" data-image="${escapeHtml(safeUrl)}">
@@ -666,7 +681,7 @@ function renderProductInfo() {
   if (!product) return;
 
   const activeVariant = getActiveVariant();
-  const title = activeVariant?.title || product.title;
+  const title = activeVariant ? `${product.title} - ${getVariantLabel(activeVariant)}` : product.title;
 
   elements.productTitle.textContent = title;
   elements.productDescription.textContent = product.description;
@@ -789,7 +804,10 @@ function showMercadoPagoRedirectModal(checkoutUrl) {
 
 function buildDirectCheckoutPayload(shippingSelection) {
   const activeVariant = getActiveVariant();
-  const title = activeVariant?.title || state.product?.title || "Pedido Power Tech";
+  const variationLabel = activeVariant ? getVariantLabel(activeVariant) : "";
+  const title = activeVariant
+    ? `${state.product?.title || "Pedido Power Tech"} - ${variationLabel}`
+    : (state.product?.title || "Pedido Power Tech");
   const fallbackTotal = round2(state.basePrice * (1 - state.discountRate));
   const productAmount = round2(state.finalPrice || fallbackTotal);
   const shippingAmount = round2(shippingSelection?.shipping?.price || 0);
@@ -834,6 +852,10 @@ function buildDirectCheckoutPayload(shippingSelection) {
       source: "produto-direto",
       productId: state.product?.id || "",
       variationId: activeVariant?.id || "",
+      variationName: String(activeVariant?.name || "").trim(),
+      variationValue: String(activeVariant?.value || activeVariant?.title || "").trim(),
+      variationLabel,
+      quantity: 1,
       couponCode: state.couponCode,
       productAmount,
       shippingAmount,
@@ -930,7 +952,12 @@ function wireEvents() {
   elements.variationList.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-variation-id]");
     if (!btn) return;
-    state.activeVariationId = btn.getAttribute("data-variation-id") || "";
+    const nextVariationId = String(btn.getAttribute("data-variation-id") || "").trim();
+    const variations = Array.isArray(state.product?.variations) ? state.product.variations : [];
+    if (nextVariationId && !variations.some((variation) => variation.id === nextVariationId)) {
+      return;
+    }
+    state.activeVariationId = nextVariationId === state.activeVariationId ? "" : nextVariationId;
     state.activeImage = "";
     renderProductInfo();
     renderPricing();
@@ -1007,13 +1034,16 @@ init();
  * e q_auto (qualidade automática) para melhor performance em dispositivos móveis.
  */
 function optimizeMediaUrl(url) {
-  if (!url || typeof url !== 'string' || !url.includes('res.cloudinary.com')) {
-    return url;
+  const safeUrl = safeImageUrl(url);
+  if (!safeUrl || !safeUrl.includes("res.cloudinary.com")) {
+    return safeUrl;
   }
-  // Evita duplicar a otimização se ela já existir na URL
-  if (url.includes('/f_auto,q_auto/')) {
-    return url;
+  if (safeUrl.includes("/upload/f_auto,q_auto/")) {
+    return safeUrl;
   }
-  // Injeta os parâmetros logo após a pasta /upload/
-  return url.replace('/upload/', '/upload/f_auto,q_auto/');
+  if (!safeUrl.includes("/upload/")) {
+    return safeUrl;
+  }
+  return safeUrl.replace("/upload/", "/upload/f_auto,q_auto/");
 }
+

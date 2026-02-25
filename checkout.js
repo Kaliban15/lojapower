@@ -145,11 +145,11 @@ function renderUpsellLines() {
 
 function resolveBasePrice() {
   const variation = state.variation;
-  if (variation?.promoPrice && Number(variation.promoPrice) > 0) {
-    return Number(variation.promoPrice);
-  }
   if (variation?.price && Number(variation.price) > 0) {
     return Number(variation.price);
+  }
+  if (variation?.promoPrice && Number(variation.promoPrice) > 0) {
+    return Number(variation.promoPrice);
   }
   if (state.product?.promoPrice && Number(state.product.promoPrice) > 0) {
     return Number(state.product.promoPrice);
@@ -160,9 +160,17 @@ function resolveBasePrice() {
   return state.basePrice;
 }
 
+function getVariationLabel(variation) {
+  const name = String(variation?.name || "").trim();
+  const value = String(variation?.value || variation?.title || "").trim();
+  if (name && value) return `${name}: ${value}`;
+  return value || name || "";
+}
+
 function getProductDisplayTitle() {
   if (!state.product) return "Produto";
-  if (state.variation?.title) return `${state.product.title} - ${state.variation.title}`;
+  const variationLabel = getVariationLabel(state.variation);
+  if (variationLabel) return `${state.product.title} - ${variationLabel}`;
   return state.product.title;
 }
 
@@ -258,6 +266,10 @@ function buildCheckoutPayload() {
     order: {
       productId: state.product?.id || "",
       variationId: state.variation?.id || "",
+      variationName: String(state.variation?.name || "").trim(),
+      variationValue: String(state.variation?.value || state.variation?.title || "").trim(),
+      variationLabel: getVariationLabel(state.variation),
+      quantity: 1,
       couponCode: state.couponCode,
       subtotal: totals.subtotal,
       discount: totals.discount,

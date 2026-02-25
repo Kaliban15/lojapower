@@ -997,6 +997,19 @@ function normalizeImages(product = {}) {
   return legacy ? [legacy] : [];
 }
 
+function normalizeVariationStock(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return Math.max(0, Math.floor(Number(fallback) || 0));
+  return Math.max(0, Math.floor(parsed));
+}
+
+function getVariationDisplayLabel(variation = {}) {
+  const name = String(variation?.name || "").trim();
+  const value = String(variation?.value || variation?.title || "").trim();
+  if (name && value) return `${name}: ${value}`;
+  return value || name || "";
+}
+
 function sanitizeProduct(product = {}) {
   const categories = normalizeCategoryList(product.categories || product.category);
   const images = normalizeImages(product);
@@ -1155,29 +1168,33 @@ function normalizeVariations(input) {
 
   return input
     .map((item) => {
-      const title = String(item?.title || "").trim();
-      const price = normalizePrice(item?.price);
+      const fallbackLabel = String(item?.title || "").trim();
+      const name = String(item?.name || "").trim() || (fallbackLabel ? "Opcao" : "");
+      const value = String(item?.value || "").trim() || fallbackLabel;
+      const priceRaw = normalizePrice(item?.price);
       const promoRaw = item?.promoPrice === "" || item?.promoPrice === null || item?.promoPrice === undefined
-        ? null
+        ? Number.NaN
         : normalizePrice(item?.promoPrice);
       const images = Array.isArray(item?.images)
         ? item.images.map((img) => String(img || "").trim()).filter(Boolean).slice(0, 10)
         : [];
+      const stock = normalizeVariationStock(item?.stock, 0);
 
-      let promoPrice = Number.isFinite(promoRaw) && promoRaw > 0 ? promoRaw : null;
-      if (promoPrice && Number.isFinite(price) && promoPrice >= price) {
-        promoPrice = null;
+      let resolvedPrice = Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : null;
+      if (!resolvedPrice && Number.isFinite(promoRaw) && promoRaw > 0) {
+        resolvedPrice = promoRaw;
       }
 
       return {
         id: String(item?.id || `v-${Date.now()}-${Math.round(Math.random() * 1e5)}`),
-        title,
-        price: Number.isFinite(price) ? Number(price.toFixed(2)) : 0,
-        promoPrice: promoPrice ? Number(promoPrice.toFixed(2)) : null,
+        name,
+        value,
+        price: resolvedPrice ? Number(resolvedPrice.toFixed(2)) : null,
+        stock,
         images,
       };
     })
-    .filter((v) => v.title && v.price > 0);
+    .filter((v) => v.value && Number.isFinite(v.stock));
 }
 
 function resolveProductVariation(product = {}, variationId = "") {
@@ -1188,11 +1205,11 @@ function resolveProductVariation(product = {}, variationId = "") {
 }
 
 function resolveProductEffectivePrice(product = {}, variation = null) {
-  if (variation?.promoPrice && Number(variation.promoPrice) > 0) {
-    return Number(variation.promoPrice);
-  }
   if (variation?.price && Number(variation.price) > 0) {
     return Number(variation.price);
+  }
+  if (variation?.promoPrice && Number(variation.promoPrice) > 0) {
+    return Number(variation.promoPrice);
   }
   if (product?.promoPrice && Number(product.promoPrice) > 0) {
     return Number(product.promoPrice);
@@ -1935,6 +1952,8 @@ async function resolveShipmentOrderContext(payment = {}, intent = null) {
   const variationId = firstNonEmptyString(order?.variationId, intent?.order?.variationId);
   const product = productId ? products.find((item) => item.id === productId) : null;
   const variation = resolveProductVariation(product || {}, variationId);
+  const variationLabel = getVariationDisplayLabel(variation);
+  const quantity = Math.max(1, Math.floor(Number(order?.quantity || 1) || 1));
   const productAmountFromOrder = Number(order?.productAmount || 0);
   const productAmount = productAmountFromOrder > 0
     ? Number(productAmountFromOrder.toFixed(2))
@@ -1948,7 +1967,7 @@ async function resolveShipmentOrderContext(payment = {}, intent = null) {
   );
 
   const productTitle = firstNonEmptyString(
-    variation?.title ? `${product?.title || "Produto"} - ${variation.title}` : "",
+    variationLabel ? `${product?.title || "Produto"} - ${variationLabel}` : "",
     product?.title,
     order?.productTitle,
     intent?.title,
@@ -1973,6 +1992,10 @@ async function resolveShipmentOrderContext(payment = {}, intent = null) {
     customerAddress,
     productId: product?.id || productId,
     variationId: variation?.id || variationId,
+    variationName: firstNonEmptyString(order?.variationName, variation?.name),
+    variationValue: firstNonEmptyString(order?.variationValue, variation?.value),
+    variationLabel: firstNonEmptyString(order?.variationLabel, variationLabel),
+    quantity,
     productTitle,
     productAmount: Number.isFinite(productAmount) && productAmount > 0 ? productAmount : 1,
     shippingAmount: Number(shipping?.price || order?.shippingAmount || 0) || 0,
@@ -1985,6 +2008,70 @@ async function resolveShipmentOrderContext(payment = {}, intent = null) {
       companyName,
     },
     package: packageData,
+  };
+}
+
+async function decrementProductVariationStock(orderContext = {}) {
+  const productId = String(orderContext?.productId || "").trim();
+  const variationId = String(orderContext?.variationId || "").trim();
+  const quantity = Math.max(1, Math.floor(Number(orderContext?.quantity || orderContext?.order?.quantity || 1) || 1));
+
+  if (!productId || !variationId) {
+    return {
+      applied: false,
+      reason: "missing_product_or_variation",
+      productId,
+      variationId,
+      quantity,
+    };
+  }
+
+  const products = await readProducts();
+  const productIndex = products.findIndex((item) => item.id === productId);
+  if (productIndex < 0) {
+    return {
+      applied: false,
+      reason: "product_not_found",
+      productId,
+      variationId,
+      quantity,
+    };
+  }
+
+  const product = products[productIndex];
+  const variations = Array.isArray(product.variations) ? product.variations : [];
+  const variationIndex = variations.findIndex((item) => String(item?.id || "") === variationId);
+  if (variationIndex < 0) {
+    return {
+      applied: false,
+      reason: "variation_not_found",
+      productId,
+      variationId,
+      quantity,
+    };
+  }
+
+  const currentStock = normalizeVariationStock(variations[variationIndex]?.stock, 0);
+  const nextStock = Math.max(0, currentStock - quantity);
+  products[productIndex] = {
+    ...product,
+    variations: variations.map((item, index) => {
+      if (index !== variationIndex) return item;
+      return {
+        ...item,
+        stock: nextStock,
+      };
+    }),
+  };
+
+  await writeProducts(products);
+  return {
+    applied: true,
+    productId,
+    variationId,
+    quantity,
+    previousStock: currentStock,
+    stock: nextStock,
   };
 }
 
@@ -2306,6 +2393,8 @@ async function buildDirectShipmentContext(payload = {}) {
   }
 
   const variation = resolveProductVariation(product, variationId);
+  const variationLabel = getVariationDisplayLabel(variation);
+  const quantity = Math.max(1, Math.floor(Number(payload.quantity || 1) || 1));
   const productAmountRaw = Number(payload.productAmount || payload.amount || resolveProductEffectivePrice(product, variation));
   const productAmount = Number.isFinite(productAmountRaw) && productAmountRaw > 0
     ? Number(productAmountRaw.toFixed(2))
@@ -2333,9 +2422,13 @@ async function buildDirectShipmentContext(payload = {}) {
     externalReference: normalizeExternalReference(payload.externalReference || `DIRECT-${Date.now()}`),
     productId: product.id,
     variationId: variation?.id || "",
+    variationName: String(variation?.name || "").trim(),
+    variationValue: String(variation?.value || "").trim(),
+    variationLabel,
+    quantity,
     productTitle: firstNonEmptyString(
       payload.productTitle,
-      variation?.title ? `${product.title} - ${variation.title}` : "",
+      variationLabel ? `${product.title} - ${variationLabel}` : "",
       product.title,
       "Produto",
     ),
@@ -2344,6 +2437,10 @@ async function buildDirectShipmentContext(payload = {}) {
     order: {
       productId: product.id,
       variationId: variation?.id || "",
+      variationName: String(variation?.name || "").trim(),
+      variationValue: String(variation?.value || "").trim(),
+      variationLabel,
+      quantity,
       total: Number((productAmount + (Number(payload.shippingAmount || shippingPayload.price || 0) || 0)).toFixed(2)),
     },
     customer: {
@@ -2541,6 +2638,48 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
       reason: "invalid_order_context",
       shipping: failedRecord,
     };
+  }
+
+  if (!existing?.stockUpdatedAt) {
+    let stockPatch = null;
+    try {
+      const stockResult = await decrementProductVariationStock(orderContext);
+      stockPatch = {
+        stockUpdatedAt: new Date().toISOString(),
+        stockUpdateApplied: Boolean(stockResult?.applied),
+        stockUpdateResult: stockResult || null,
+      };
+    } catch (error) {
+      stockPatch = {
+        stockUpdatedAt: new Date().toISOString(),
+        stockUpdateApplied: false,
+        stockUpdateResult: {
+          applied: false,
+          reason: "stock_update_error",
+          message: error?.message || "Falha ao atualizar estoque da variacao.",
+          productId: String(orderContext?.productId || ""),
+          variationId: String(orderContext?.variationId || ""),
+          quantity: Math.max(1, Math.floor(Number(orderContext?.quantity || 1) || 1)),
+        },
+      };
+    }
+
+    await upsertShippingOrderRecord(id, stockPatch);
+    if (referenceKey) {
+      await upsertShippingOrderRecord(referenceKey, {
+        externalReference,
+        linkedPaymentId: id,
+        ...stockPatch,
+      });
+    }
+    if (externalReference) {
+      await upsertCheckoutIntent(externalReference, {
+        order: {
+          ...(intent?.order && typeof intent.order === "object" ? intent.order : {}),
+          stockUpdate: stockPatch.stockUpdateResult || {},
+        },
+      });
+    }
   }
 
   if (!orderContext?.shipping?.serviceId) {
