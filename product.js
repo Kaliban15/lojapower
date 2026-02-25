@@ -255,7 +255,7 @@ function renderSearchDropdown(results, query) {
 
   elements.searchDropdown.innerHTML = results.slice(0, SEARCH_LIMIT).map((entry) => {
     const product = entry.product;
-    const thumb = entry.images[0] || BLANK_IMAGE;
+    const thumb = getFirstImageThumb(entry.images) || BLANK_IMAGE;
     const basePrice = Number(product.promoPrice || product.price || 0);
     const discounted = basePrice * 0.7;
     const productUrl = `produto.html?id=${encodeURIComponent(product.id)}&cupom=CLIENTE30`;
@@ -412,6 +412,23 @@ function safeImageUrl(url) {
   return cleanUrl;
 }
 
+function isVideoUrl(url) {
+  const cleanUrl = safeImageUrl(url).toLowerCase();
+  if (!cleanUrl) return false;
+  if (cleanUrl.startsWith("data:video/")) return true;
+  if (cleanUrl.includes("/video/upload/")) return true;
+  return /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/.test(cleanUrl);
+}
+
+function getFirstImageThumb(mediaList) {
+  if (!Array.isArray(mediaList)) return "";
+  for (const item of mediaList) {
+    const safeUrl = safeImageUrl(item);
+    if (safeUrl && !isVideoUrl(safeUrl)) return safeUrl;
+  }
+  return "";
+}
+
 function round2(value) {
   return Number((Number(value) || 0).toFixed(2));
 }
@@ -519,6 +536,18 @@ function syncActiveImageFromTrack() {
     state.activeImage = nextImage;
     updateThumbActiveState();
   }
+
+  pauseInactiveVideos();
+}
+
+function pauseInactiveVideos() {
+  const activeSafe = safeImageUrl(state.activeImage);
+  elements.productTrack.querySelectorAll(".stage-video").forEach((video) => {
+    const source = safeImageUrl(video.getAttribute("src") || video.currentSrc || "");
+    if (source !== activeSafe) {
+      video.pause();
+    }
+  });
 }
 
 function renderImages() {
@@ -537,16 +566,25 @@ function renderImages() {
 
   elements.productTrack.innerHTML = images.map((url, index) => {
     const safeUrl = safeImageUrl(url);
+    const optimizedUrl = optimizeMediaUrl(safeUrl); // <--- A mágica da otimização
+    const isVideo = isVideoUrl(safeUrl);
     const alt = `${state.product?.title || "Imagem do produto"} ${index + 1}`;
     const cardClass = index % 2 === 0 ? "stage-slide stage-slide-main" : "stage-slide stage-slide-alt";
-    const bgImage = safeUrl
-      ? `style="background-image:linear-gradient(130deg, rgba(7,20,54,0.75), rgba(15,77,243,0.58)), url('${safeUrl.replace(/'/g, "%27")}')"`
+    
+    // Otimizamos também a imagem de fundo (background-image)
+    const bgImage = optimizedUrl && !isVideo
+      ? `style="background-image:linear-gradient(130deg, rgba(7,20,54,0.75), rgba(15,77,243,0.58)), url('${optimizedUrl.replace(/'/g, "%27")}')"`
       : "";
+
+    // Otimizamos o src do vídeo e da imagem
+    const mediaMarkup = isVideo
+      ? `<video class="stage-video" src="${escapeHtml(optimizedUrl)}" aria-label="${escapeHtml(alt)}" controls playsinline preload="metadata"></video>`
+      : `<img class="stage-image" src="${escapeHtml(optimizedUrl)}" alt="${escapeHtml(alt)}" draggable="false" loading="lazy" />`;
 
     return `
       <article class="${cardClass}" ${bgImage}>
         <div class="stage-image-frame">
-          <img class="stage-image" src="${escapeHtml(safeUrl)}" alt="${escapeHtml(alt)}" draggable="false" loading="lazy" />
+          ${mediaMarkup}
         </div>
       </article>
     `;
@@ -554,13 +592,29 @@ function renderImages() {
 
   elements.imageThumbs.innerHTML = images.map((url) => {
     const safeUrl = safeImageUrl(url);
+    const optimizedUrl = optimizeMediaUrl(safeUrl); // <--- Otimização aplicada aqui
     const activeClass = safeUrl === safeImageUrl(active) ? "active" : "";
-    return `<button type="button" class="thumb-btn ${activeClass}" data-image="${escapeHtml(safeUrl)}"><img src="${escapeHtml(safeUrl)}" alt="Miniatura" loading="lazy" /></button>`;
+    
+    if (isVideoUrl(safeUrl)) {
+      return `
+        <button type="button" class="thumb-btn thumb-btn-video ${activeClass}" data-image="${escapeHtml(safeUrl)}">
+          <video src="${escapeHtml(optimizedUrl)}" aria-label="Miniatura do video" muted playsinline preload="metadata"></video>
+          <span class="thumb-video-badge">Video</span>
+        </button>
+      `;
+    }
+    
+    return `
+      <button type="button" class="thumb-btn ${activeClass}" data-image="${escapeHtml(safeUrl)}">
+        <img src="${escapeHtml(optimizedUrl)}" alt="Miniatura" loading="lazy" />
+      </button>
+    `;
   }).join("");
 
   const index = getActiveImageIndex(images);
   requestAnimationFrame(() => {
     scrollToImage(index, "auto");
+    pauseInactiveVideos();
   });
 }
 
@@ -860,6 +914,7 @@ function wireEvents() {
     state.activeImage = images[index];
     updateThumbActiveState();
     scrollToImage(index, "smooth");
+    pauseInactiveVideos();
   });
 
   elements.productTrack.addEventListener("scroll", () => {
@@ -941,3 +996,22 @@ async function init() {
 }
 
 init();
+
+
+
+
+/**
+ * Otimiza URLs do Cloudinary adicionando f_auto (formato automático) 
+ * e q_auto (qualidade automática) para melhor performance em dispositivos móveis.
+ */
+function optimizeMediaUrl(url) {
+  if (!url || typeof url !== 'string' || !url.includes('res.cloudinary.com')) {
+    return url;
+  }
+  // Evita duplicar a otimização se ela já existir na URL
+  if (url.includes('/f_auto,q_auto/')) {
+    return url;
+  }
+  // Injeta os parâmetros logo após a pasta /upload/
+  return url.replace('/upload/', '/upload/f_auto,q_auto/');
+}

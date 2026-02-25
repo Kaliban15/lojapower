@@ -136,6 +136,23 @@ function resolveProductImages(product) {
   return legacy ? [legacy.replace(/\\/g, "/")] : [];
 }
 
+function isVideoUrl(url) {
+  const cleanUrl = String(url || "").trim().toLowerCase();
+  if (!cleanUrl) return false;
+  if (cleanUrl.startsWith("data:video/")) return true;
+  if (cleanUrl.includes("/video/upload/")) return true;
+  return /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/.test(cleanUrl);
+}
+
+function getFirstImageThumb(mediaList) {
+  if (!Array.isArray(mediaList)) return "";
+  for (const item of mediaList) {
+    const safeUrl = String(item || "").trim();
+    if (safeUrl && !isVideoUrl(safeUrl)) return safeUrl;
+  }
+  return "";
+}
+
 function normalizeProductForSearch(product) {
   const images = resolveProductImages(product);
   const categories = Array.isArray(product.categories) ? product.categories : [product.category || ""];
@@ -311,7 +328,7 @@ function slideHtml(slide, index) {
 }
 
 function buildFeaturedShowcase(product) {
-  const images = resolveProductImages(product);
+  const images = resolveProductImages(product).filter((item) => !isVideoUrl(item));
   if (!images.length) {
     return '<div class="thumb tracker-thumb" aria-hidden="true"></div>';
   }
@@ -333,12 +350,15 @@ function buildFeaturedShowcase(product) {
 }
 
 function productCardHtml(product, featured = false) {
-  const images = resolveProductImages(product);
-  const firstImage = images[0] || "";
-  const img = firstImage
+  const medias = resolveProductImages(product);
+  const firstImage = getFirstImageThumb(medias);
+  const firstMedia = medias[0] || "";
+  const img = (firstImage || firstMedia)
     ? (featured
       ? buildFeaturedShowcase(product)
-      : `<img class="product-image" src="${escapeHtml(firstImage)}" alt="${escapeHtml(product.title)}" loading="lazy" />`)
+      : (firstImage
+        ? `<img class="product-image" src="${escapeHtml(firstImage)}" alt="${escapeHtml(product.title)}" loading="lazy" />`
+        : `<video class="product-image product-video" src="${escapeHtml(firstMedia)}" aria-label="${escapeHtml(product.title)}" muted playsinline preload="metadata"></video>`))
     : '<div class="thumb tracker-thumb" aria-hidden="true"></div>';
 
   const cardClass = featured ? "product-card featured" : "product-card";
@@ -387,7 +407,7 @@ function renderSearchDropdown(results, query) {
 
   searchDropdown.innerHTML = results.slice(0, SEARCH_LIMIT).map((entry) => {
     const product = entry.product;
-    const thumb = entry.images[0] || BLANK_IMAGE;
+    const thumb = getFirstImageThumb(entry.images) || BLANK_IMAGE;
     const basePrice = Number(product.promoPrice || product.price || 0);
     const discounted = basePrice * 0.7;
     const productUrl = `produto.html?id=${encodeURIComponent(product.id)}&cupom=CLIENTE30`;

@@ -169,6 +169,27 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function isVideoMedia(value, mimeHint = "") {
+  const type = String(mimeHint || "").trim().toLowerCase();
+  if (type.startsWith("video/")) return true;
+  if (type.startsWith("image/")) return false;
+
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return false;
+  if (raw.startsWith("data:video/")) return true;
+  if (raw.includes("/video/upload/")) return true;
+  return /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/.test(raw);
+}
+
+function mediaPreviewHtml(url, alt, mimeHint = "") {
+  const safeUrl = escapeHtml(url);
+  const safeAlt = escapeHtml(alt);
+  if (isVideoMedia(url, mimeHint)) {
+    return `<video src="${safeUrl}" aria-label="${safeAlt}" muted playsinline preload="metadata"></video>`;
+  }
+  return `<img src="${safeUrl}" alt="${safeAlt}" />`;
+}
+
 function parseBullets(text) {
   const lines = String(text || "")
     .split("\n")
@@ -437,13 +458,13 @@ function readSlidesFromEditor() {
 }
 
 function imageOrderEditorHtml(images) {
-  if (!images.length) return '<p class="mini-note">Sem imagens cadastradas.</p>';
+  if (!images.length) return '<p class="mini-note">Sem midias cadastradas.</p>';
 
   return `
     <div class="img-order-grid">
       ${images.map((url, index) => `
         <div class="img-order-item">
-          <img src="${escapeHtml(url)}" alt="Imagem ${index + 1}" />
+          ${mediaPreviewHtml(url, `Midia ${index + 1}`)}
           <div class="img-order-actions">
             <button type="button" class="img-btn" data-img-action="left" data-img-index="${index}" title="Mover para esquerda">◀</button>
             <button type="button" class="img-btn" data-img-action="right" data-img-index="${index}" title="Mover para direita">▶</button>
@@ -456,13 +477,13 @@ function imageOrderEditorHtml(images) {
 }
 
 function createDraftImageEditorHtml(items) {
-  if (!items.length) return '<p class="mini-note">Nenhuma imagem selecionada.</p>';
+  if (!items.length) return '<p class="mini-note">Nenhuma midia selecionada.</p>';
 
   return `
     <div class="img-order-grid">
       ${items.map((item, index) => `
         <div class="img-order-item">
-          <img src="${escapeHtml(item.previewUrl)}" alt="Nova imagem ${index + 1}" />
+          ${mediaPreviewHtml(item.previewUrl, `Nova midia ${index + 1}`, item.mediaType)}
           <div class="img-order-actions">
             <button type="button" class="img-btn" data-draft-action="left" data-draft-index="${index}" title="Mover para esquerda">◀</button>
             <button type="button" class="img-btn" data-draft-action="right" data-draft-index="${index}" title="Mover para direita">▶</button>
@@ -510,10 +531,10 @@ function productItemTemplate(product) {
         </div>
 
         <label>
-          Adicionar imagens (ate completar 10)
-          <input type="file" name="imageFiles" accept="image/*" multiple />
+          Adicionar midias (imagens/videos, ate completar 10)
+          <input type="file" name="imageFiles" accept="image/*,video/*" multiple />
         </label>
-        <p class="mini-note">Use os controles abaixo para ordenar/remover imagens atuais.</p>
+        <p class="mini-note">Use os controles abaixo para ordenar/remover as midias atuais.</p>
         <div data-image-order>${imageOrderEditorHtml(images)}</div>
 
         <label>
@@ -542,7 +563,7 @@ function productItemTemplate(product) {
         </label>
 
         <label>
-          Variacoes (1 por linha: Titulo|Preco|PrecoPromocional|img1,img2)
+          Variacoes (1 por linha: Titulo|Preco|PrecoPromocional|midia1,midia2)
           <textarea name="variationsText" rows="5">${escapeHtml(variationsToText(product.variations))}</textarea>
         </label>
 
@@ -975,6 +996,7 @@ productForm.addEventListener("change", (event) => {
     state.createDraftImages.push({
       file,
       previewUrl: URL.createObjectURL(file),
+      mediaType: String(file.type || "").trim(),
     });
   }
 

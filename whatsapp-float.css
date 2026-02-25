@@ -1,0 +1,43 @@
+.wa-float {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 95;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #25d366;
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 12px 24px rgba(9, 32, 84, 0.26);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wa-float:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 15px 28px rgba(9, 32, 84, 0.3);
+}
+
+.wa-float:focus-visible {
+  outline: 3px solid rgba(37, 211, 102, 0.36);
+  outline-offset: 3px;
+}
+
+.wa-float svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+
+.wa-float.wa-float--offset {
+  bottom: calc(90px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 780px) {
+  .wa-float.wa-float--offset {
+    bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}

@@ -1,4 +1,6 @@
-﻿const express = require("express");
+﻿require('dotenv').config();
+console.log("DEBUG - URI do MongoDB carregada:", process.env.MONGO_URI ? "Sim (Ok)" : "Não (Vazia)");
+const express = require("express");
 const fs = require("node:fs/promises");
 const fssync = require("node:fs");
 const path = require("node:path");
@@ -152,8 +154,9 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'produtos_powertech', 
-    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    folder: 'produtos_powertech',
+    resource_type: "auto",
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp4', 'webm', 'mov'],
     public_id: (req, file) => `prod-${Date.now()}`
   },
 });
@@ -161,13 +164,14 @@ const storage = new CloudinaryStorage({
 // 3. O middleware final (Com os limites que você já usava)
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // Mantém o limite de 5MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // Mantém o limite de 5MB
   fileFilter: (_req, file, cb) => {
-    if ((file.mimetype || "").startsWith("image/")) {
+    const mimeType = String(file.mimetype || "").toLowerCase();
+    if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
       cb(null, true);
       return;
     }
-    cb(new Error("Apenas imagens são permitidas."));
+    cb(new Error("Apenas arquivos de midia (imagem ou video) sao permitidos."));
   },
 });
 
@@ -2817,8 +2821,8 @@ async function handleMercadoPagoNotification(event = {}) {
 function createApp() {
   const app = express();
 
-  app.use(express.json({ limit: "4mb" }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(express.static(ROOT_DIR));
   app.use("/vendedor", express.static(path.join(ROOT_DIR, "vendedor")));
   app.use("/uploads", express.static(UPLOAD_DIR));
@@ -3737,7 +3741,7 @@ function createApp() {
   app.post("/api/upload-images", upload.array("images", 10), (req, res) => {
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) {
-      return res.status(400).json({ message: "Arquivos de imagem não enviados." });
+      return res.status(400).json({ message: "Arquivos de midia nao enviados." });
     }
 
     // O Cloudinary já entrega a URL completa em file.path
@@ -3967,7 +3971,7 @@ app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError) {
-      return res.status(400).json({ message: "Falha no upload da imagem." });
+      return res.status(400).json({ message: "Falha no upload da midia." });
     }
     if (error) {
       return res.status(400).json({ message: error.message || "Erro na requisicao." });
