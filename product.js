@@ -595,14 +595,16 @@ function renderImages() {
     const optimizedUrl = optimizeMediaUrl(safeUrl); // <--- Otimização aplicada aqui
     const activeClass = safeUrl === safeImageUrl(active) ? "active" : "";
     
+// ... (trecho anterior do código)
     if (isVideoUrl(safeUrl)) {
       return `
         <button type="button" class="thumb-btn thumb-btn-video ${activeClass}" data-image="${escapeHtml(safeUrl)}">
-          <video src="${escapeHtml(optimizedUrl)}" aria-label="Miniatura do video" muted playsinline preload="metadata"></video>
+          <video src="${escapeHtml(optimizedUrl)}" aria-label="Miniatura do video" autoplay loop muted playsinline preload="metadata" style="pointer-events: none;"></video>
           <span class="thumb-video-badge">Video</span>
         </button>
       `;
     }
+// ... (restante do código)
     
     return `
       <button type="button" class="thumb-btn ${activeClass}" data-image="${escapeHtml(safeUrl)}">
