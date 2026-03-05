@@ -314,20 +314,29 @@ function getBestSellers(source) {
 
 function slideHtml(slide, index) {
   const classes = index % 2 === 0 ? "slide slide-main" : "slide slide-alt";
-  const bgImage = slide.image
-    ? `style="background-image:linear-gradient(130deg, rgba(7,20,54,0.75), rgba(15,77,243,0.58)), url('${slide.image.replace(/'/g, "%27")}')"`
-    : "";
-
   const highlight = slide.highlight
     ? `${slide.title || ""} <span>${slide.highlight}</span>`
     : slide.title || "Produto em destaque";
+  const imageUrl = String(slide.image || "").trim();
+  const mediaMarkup = imageUrl
+    ? `
+      <div class="slide-media" aria-hidden="true">
+        <img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />
+      </div>
+    `
+    : "";
 
   return `
-    <article class="${classes}" ${bgImage}>
-      <p class="slide-kicker">${slide.kicker || "DESTAQUE"}</p>
-      <h2>${highlight}</h2>
-      <p>${slide.description || "Oferta exclusiva para cliente fiel."}</p>
-      <a class="btn ${index % 2 ? "btn-light" : ""}" href="${slide.buttonLink || "produto.html?cupom=CLIENTE30"}">${slide.buttonText || "Ver produto"}</a>
+    <article class="${classes}${imageUrl ? " slide-has-image" : ""}">
+      <div class="slide-layout">
+        <div class="slide-copy">
+          <p class="slide-kicker">${slide.kicker || "DESTAQUE"}</p>
+          <h2>${highlight}</h2>
+          <p>${slide.description || "Oferta exclusiva para cliente fiel."}</p>
+          <a class="btn ${index % 2 ? "btn-light" : ""}" href="${slide.buttonLink || "produto.html?cupom=CLIENTE30"}">${slide.buttonText || "Ver produto"}</a>
+        </div>
+        ${mediaMarkup}
+      </div>
     </article>
   `;
 }
