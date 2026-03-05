@@ -13,10 +13,15 @@
 </head>
 <body>
   <header class="admin-header">
-    <div class="container">
-      <p class="kicker">Area interna</p>
-      <h1>Painel do Vendedor</h1>
-      <p>Gerencie produtos e todo o conteudo da Home.</p>
+    <div class="container admin-header-row">
+      <div class="admin-header-copy">
+        <p class="kicker">Area interna</p>
+        <h1>Painel do Vendedor</h1>
+        <p>Gerencie produtos, acompanhe as vendas e mantenha a operacao da loja organizada.</p>
+      </div>
+      <div class="admin-header-actions">
+        <button type="button" class="btn btn-header" id="openSalesBtn">Acessar vendas</button>
+      </div>
     </div>
   </header>
 
@@ -236,6 +241,24 @@
           <button type="submit" class="btn btn-primary">Salvar configuracao de frete</button>
         </form>
         <p id="shippingMessage" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="admin-card admin-full collapsible collapsed" data-collapsible id="salesSection">
+      <button type="button" class="collapse-toggle" data-collapse-toggle>
+        <h2>Vendas realizadas</h2>
+        <span class="collapse-icon">+</span>
+      </button>
+      <div class="collapse-body">
+        <div class="section-head">
+          <div>
+            <strong>Clientes que ja compraram</strong>
+            <p class="mini-note">Lista baseada em pagamentos aprovados salvos no banco de dados.</p>
+          </div>
+          <button id="refreshSalesBtn" class="btn btn-light" type="button">Atualizar vendas</button>
+        </div>
+        <p id="salesMessage" class="form-message" role="status" aria-live="polite"></p>
+        <div id="salesList" class="sales-list"></div>
       </div>
     </section>
 

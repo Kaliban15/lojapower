@@ -105,12 +105,23 @@ body {
   font: inherit;
   font-weight: 700;
   color: var(--gray-950);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
 }
 
 .sidebar-link.active {
   background: #e7efff;
   border-color: #a9c0ff;
   color: var(--blue-900);
+}
+
+.sidebar-link-accent {
+  margin-top: 0.3rem;
+  justify-content: center;
+  background: linear-gradient(120deg, var(--blue-900), var(--blue));
+  border-color: transparent;
+  color: var(--white);
 }
 
 .store-name {

@@ -15,6 +15,11 @@ const createImageOrder = document.getElementById("createImageOrder");
 const createVariationsEditor = document.getElementById("createVariationsEditor");
 const shippingConfigForm = document.getElementById("shippingConfigForm");
 const shippingMessage = document.getElementById("shippingMessage");
+const salesSection = document.getElementById("salesSection");
+const salesList = document.getElementById("salesList");
+const salesMessage = document.getElementById("salesMessage");
+const refreshSalesBtn = document.getElementById("refreshSalesBtn");
+const openSalesBtn = document.getElementById("openSalesBtn");
 const meStatusText = document.getElementById("meStatusText");
 const meEnvironment = document.getElementById("meEnvironment");
 const meCallbackPath = document.getElementById("meCallbackPath");
@@ -53,6 +58,8 @@ const state = {
   },
   shippingConfig: null,
   melhorEnvioStatus: null,
+  sales: [],
+  salesError: "",
   createDraftImages: [],
   createVariationDrafts: [],
   editDraftImagesByProduct: {},
@@ -105,6 +112,77 @@ function normalizeStateInput(value) {
     .replace(/[^a-z]/gi, "")
     .toUpperCase()
     .slice(0, 2);
+}
+
+function formatDateTime(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString("pt-BR");
+}
+
+function formatPhoneDisplay(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const local = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
+  if (local.length === 11) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+  }
+  if (local.length === 10) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+  }
+  return digits;
+}
+
+function formatCpfDisplay(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length !== 11) return String(value || "").trim();
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function formatPostalCodeDisplay(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length !== 8) return String(value || "").trim();
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+function humanizeStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const map = {
+    approved: "Pagamento aprovado",
+    pending: "Pagamento pendente",
+    rejected: "Pagamento recusado",
+    cancelled: "Pagamento cancelado",
+    created: "Envio criado",
+    created_without_label: "Envio criado",
+    payment_approved: "Pagamento aprovado",
+    waiting_payment: "Aguardando pagamento",
+    shipping_error: "Falha no envio",
+    released: "Envio liberado",
+    posted: "Enviado",
+    delivered: "Entregue",
+  };
+
+  if (!normalized) return "";
+  if (map[normalized]) return map[normalized];
+
+  const text = normalized.replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function getSaleStatusTone(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "neutral";
+  if (["approved", "created", "created_without_label", "payment_approved", "released", "posted", "delivered"].includes(normalized)) {
+    return "ok";
+  }
+  if (["pending", "waiting_payment"].includes(normalized)) {
+    return "warn";
+  }
+  if (["rejected", "cancelled", "shipping_error"].includes(normalized)) {
+    return "err";
+  }
+  return "neutral";
 }
 
 function parseServiceIds(value) {
@@ -597,6 +675,11 @@ async function fetchMelhorEnvioStatus() {
   return readJsonResponse(response);
 }
 
+async function fetchSales() {
+  const response = await fetch("/api/admin/sales?limit=200");
+  return readJsonResponse(response);
+}
+
 async function uploadImages(fileList) {
   const files = Array.from(fileList || []).filter(Boolean);
   if (!files.length) return [];
@@ -1026,13 +1109,103 @@ function renderShippingPanel() {
   }
 }
 
+function buildSaleAddress(address = {}) {
+  const parts = [
+    String(address.street || "").trim(),
+    String(address.number || "").trim(),
+    String(address.complement || "").trim(),
+    String(address.district || "").trim(),
+    String(address.city || "").trim(),
+    String(address.state || "").trim(),
+    formatPostalCodeDisplay(address.postalCode || ""),
+  ].filter(Boolean);
+
+  return parts.join(", ");
+}
+
+function saleFieldHtml(label, value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return `
+    <div class="sale-field">
+      <span class="sale-field-label">${escapeHtml(label)}</span>
+      <p class="sale-field-value">${escapeHtml(text)}</p>
+    </div>
+  `;
+}
+
+function saleCardHtml(sale = {}) {
+  const customer = sale.customer && typeof sale.customer === "object" ? sale.customer : {};
+  const customerAddress = sale.customerAddress && typeof sale.customerAddress === "object" ? sale.customerAddress : {};
+  const payment = sale.payment && typeof sale.payment === "object" ? sale.payment : {};
+  const shipping = sale.shipping && typeof sale.shipping === "object" ? sale.shipping : {};
+  const paymentLabel = humanizeStatus(payment.status);
+  const shippingLabel = humanizeStatus(shipping.status);
+  const customerName = String(customer.name || "").trim() || "Cliente";
+  const phone = formatPhoneDisplay(customer.phone || "");
+  const cpf = formatCpfDisplay(customer.cpf || "");
+  const productLine = [
+    String(sale.title || "").trim(),
+    sale.variationLabel ? `(${String(sale.variationLabel || "").trim()})` : "",
+  ].filter(Boolean).join(" ");
+  const total = Number(sale.amounts?.total || 0) || 0;
+  const orderMoment = formatDateTime(payment.approvedAt || sale.updatedAt || sale.createdAt);
+  const address = buildSaleAddress(customerAddress);
+
+  return `
+    <article class="sale-card">
+      <div class="sale-head">
+        <div>
+          <h3 class="sale-title">${escapeHtml(customerName)}</h3>
+          <p class="sale-subtitle">${escapeHtml(productLine || "Pedido sem titulo")} ${total > 0 ? `- ${escapeHtml(currency.format(total))}` : ""}</p>
+        </div>
+        <div class="sale-statuses">
+          ${paymentLabel ? `<span class="sale-chip ${getSaleStatusTone(payment.status)}">${escapeHtml(paymentLabel)}</span>` : ""}
+          ${shippingLabel ? `<span class="sale-chip ${getSaleStatusTone(shipping.status)}">${escapeHtml(shippingLabel)}</span>` : ""}
+        </div>
+      </div>
+      <div class="sale-grid">
+        ${saleFieldHtml("E-mail", customer.email)}
+        ${saleFieldHtml("WhatsApp", phone)}
+        ${saleFieldHtml("CPF", cpf)}
+        ${saleFieldHtml("Pedido", sale.externalReference)}
+        ${saleFieldHtml("Data da compra", orderMoment)}
+        ${saleFieldHtml("Endereco", address)}
+        ${saleFieldHtml("Transportadora", shipping.companyName)}
+        ${saleFieldHtml("Rastreio", shipping.tracking || shipping.protocol || shipping.melhorEnvioOrderId)}
+      </div>
+    </article>
+  `;
+}
+
+function renderSalesList() {
+  if (state.salesError) {
+    salesList.innerHTML = '<p class="empty">Nao foi possivel carregar as vendas.</p>';
+    showMessage(salesMessage, state.salesError, "error");
+    return;
+  }
+
+  if (!state.sales.length) {
+    salesList.innerHTML = '<p class="empty">Nenhuma venda aprovada encontrada ainda.</p>';
+    showMessage(salesMessage, "Assim que um pagamento for aprovado, ele aparecera aqui.", "");
+    return;
+  }
+
+  salesList.innerHTML = state.sales.map((sale) => saleCardHtml(sale)).join("");
+  showMessage(salesMessage, `${state.sales.length} venda(s) aprovada(s) carregada(s).`, "success");
+}
+
 async function reloadAll() {
-  const [categories, products, content, shippingConfig, melhorEnvioStatus] = await Promise.all([
+  const [categories, products, content, shippingConfig, melhorEnvioStatus, salesResult] = await Promise.all([
     fetchCategories(),
     fetchProducts(),
     fetchContent(),
     fetchShippingConfig(),
     fetchMelhorEnvioStatus(),
+    fetchSales().catch((error) => ({
+      sales: [],
+      error: error?.message || "Falha ao carregar vendas aprovadas.",
+    })),
   ]);
 
   state.categories = Array.isArray(categories) ? categories : [];
@@ -1044,6 +1217,8 @@ async function reloadAll() {
   };
   state.shippingConfig = shippingConfig || {};
   state.melhorEnvioStatus = melhorEnvioStatus || {};
+  state.sales = Array.isArray(salesResult?.sales) ? salesResult.sales : [];
+  state.salesError = String(salesResult?.error || "").trim();
 
   benefitInput.value = state.content.benefitText;
   renderCategoryChecks(createCategories, []);
@@ -1053,6 +1228,7 @@ async function reloadAll() {
   renderCreateDraftImages();
   renderVariationsEditor("create");
   renderShippingPanel();
+  renderSalesList();
 }
 
 productForm.addEventListener("submit", async (event) => {
@@ -1319,6 +1495,18 @@ productList.addEventListener("click", async (event) => {
 refreshBtn.addEventListener("click", async () => {
   await reloadAll();
   showMessage(formMessage, "Dados atualizados.", "success");
+});
+
+refreshSalesBtn?.addEventListener("click", async () => {
+  await reloadAll();
+  showMessage(salesMessage, "Vendas atualizadas.", "success");
+});
+
+openSalesBtn?.addEventListener("click", () => {
+  if (salesSection) {
+    setPanelState(salesSection, true);
+    salesSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 });
 
 senderPostalCodeInput?.addEventListener("blur", () => {

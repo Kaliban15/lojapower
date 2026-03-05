@@ -399,9 +399,14 @@ function closeSidebar() {
 }
 
 function renderSidebar() {
-  elements.sidebarListEl.innerHTML = CATEGORIES.map((category) => {
+  const categoryLinks = CATEGORIES.map((category) => {
     return `<a class="sidebar-link" href="index.html?category=${encodeURIComponent(category)}">${category}</a>`;
   }).join("");
+
+  elements.sidebarListEl.innerHTML = `
+    ${categoryLinks}
+    <a class="sidebar-link sidebar-link-accent" href="my-orders.html">Acessar minhas compras</a>
+  `;
 }
 
 function safeImageUrl(url) {

@@ -243,6 +243,14 @@ body {
   align-items: center;
 }
 
+.sidebar-link-accent {
+  margin-top: 0.3rem;
+  justify-content: center;
+  background: linear-gradient(120deg, var(--blue-900), var(--blue-700));
+  border-color: transparent;
+  color: var(--white);
+}
+
 .product-hero {
   background: var(--white);
   border: 1px solid var(--gray-200);

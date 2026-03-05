@@ -212,6 +212,12 @@ function normalizePostalCode(value) {
   return String(value || "").replace(/\D/g, "").slice(0, 8);
 }
 
+function formatPostalCode(value) {
+  const digits = normalizePostalCode(value);
+  if (digits.length !== 8) return "";
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 function isValidPostalCode(value) {
   return normalizePostalCode(value).length === 8;
 }
@@ -336,6 +342,154 @@ function normalizeStorageMap(input) {
     output[normalizedKey] = value;
   }
   return output;
+}
+
+function normalizeCheckoutIntentPayer(payerPayload = {}) {
+  const raw = payerPayload && typeof payerPayload === "object" ? payerPayload : {};
+  const payer = {};
+
+  const name = firstNonEmptyString(raw.name, raw.full_name);
+  const email = firstNonEmptyString(raw.email);
+  const phone = normalizePhone(firstNonEmptyString(raw.phone, raw.phone_number, raw.mobile));
+  const cpf = normalizeCpf(firstNonEmptyString(raw.cpf, raw.document, raw.cpf_number));
+
+  if (name) payer.name = name;
+  if (email) payer.email = email;
+  if (phone) payer.phone = phone;
+  if (cpf) payer.cpf = cpf;
+
+  return Object.keys(payer).length ? payer : null;
+}
+
+function normalizeCheckoutIntentItems(itemsPayload = []) {
+  if (!Array.isArray(itemsPayload)) return [];
+
+  return itemsPayload
+    .map((item) => {
+      const raw = item && typeof item === "object" ? item : {};
+      const title = String(raw.title || raw.name || "").trim().slice(0, 120);
+      const quantityRaw = Number(raw.quantity || raw.qty || 1);
+      const unitPriceRaw = Number(raw.unitPrice ?? raw.unit_price ?? raw.price ?? 0);
+      const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? Math.floor(quantityRaw) : 1;
+      const unitPrice = Number.isFinite(unitPriceRaw) && unitPriceRaw >= 0
+        ? Number(unitPriceRaw.toFixed(2))
+        : 0;
+      const normalized = {
+        title,
+        quantity,
+        unitPrice,
+      };
+      const id = normalizeExternalReference(raw.id || raw.sku || "");
+      if (id) normalized.id = id;
+      return normalized;
+    })
+    .filter((item) => item.title && item.quantity > 0);
+}
+
+function normalizeCheckoutIntentPayment(paymentPayload = {}) {
+  const raw = paymentPayload && typeof paymentPayload === "object" ? paymentPayload : {};
+  const payment = {};
+
+  const id = String(raw.id || raw.paymentId || "").trim();
+  const status = String(raw.status || raw.paymentStatus || "").trim().toLowerCase();
+  const statusDetail = String(
+    raw.statusDetail
+    || raw.status_detail
+    || raw.paymentStatusDetail
+    || raw.payment_status_detail
+    || "",
+  ).trim();
+  const approvedAt = firstNonEmptyString(raw.approvedAt, raw.dateApproved, raw.date_approved);
+  const merchantOrderId = String(raw.merchantOrderId || raw.merchant_order_id || "").trim();
+
+  if (id) payment.id = id;
+  if (status) payment.status = status;
+  if (statusDetail) payment.statusDetail = statusDetail;
+  if (approvedAt) payment.approvedAt = approvedAt;
+  if (merchantOrderId) payment.merchantOrderId = merchantOrderId;
+
+  return Object.keys(payment).length ? payment : null;
+}
+
+function normalizeCheckoutIntentShipping(shippingPayload = {}) {
+  const raw = shippingPayload && typeof shippingPayload === "object" ? shippingPayload : {};
+  const shipping = {};
+
+  const status = String(raw.status || "").trim();
+  const paymentStatus = String(raw.paymentStatus || raw.payment_status || "").trim().toLowerCase();
+  const paymentStatusDetail = String(raw.paymentStatusDetail || raw.payment_status_detail || "").trim();
+  const melhorEnvioOrderId = firstNonEmptyString(
+    raw.melhorEnvioOrderId,
+    raw.melhor_envio_order_id,
+    raw.orderId,
+    raw.order_id,
+  );
+  const purchaseId = firstNonEmptyString(raw.purchaseId, raw.purchase_id);
+  const purchaseStatus = firstNonEmptyString(raw.purchaseStatus, raw.purchase_status);
+  const protocol = firstNonEmptyString(raw.protocol);
+  const tracking = firstNonEmptyString(raw.tracking, raw.trackingCode, raw.tracking_code);
+  const serviceName = firstNonEmptyString(raw.serviceName, raw.service_name);
+  const companyName = firstNonEmptyString(raw.companyName, raw.company_name);
+  const labelUrl = firstNonEmptyString(raw.labelUrl, raw.label_url);
+  const error = firstNonEmptyString(raw.error);
+  const errorStep = firstNonEmptyString(raw.errorStep, raw.error_step);
+  const updatedAt = String(raw.updatedAt || raw.updated_at || "").trim();
+  const warnings = Array.isArray(raw.warnings)
+    ? raw.warnings.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
+    : [];
+
+  if (status) shipping.status = status;
+  if (paymentStatus) shipping.paymentStatus = paymentStatus;
+  if (paymentStatusDetail) shipping.paymentStatusDetail = paymentStatusDetail;
+  if (melhorEnvioOrderId) shipping.melhorEnvioOrderId = melhorEnvioOrderId;
+  if (purchaseId) shipping.purchaseId = purchaseId;
+  if (purchaseStatus) shipping.purchaseStatus = purchaseStatus;
+  if (protocol) shipping.protocol = protocol;
+  if (tracking) shipping.tracking = tracking;
+  if (serviceName) shipping.serviceName = serviceName;
+  if (companyName) shipping.companyName = companyName;
+  if (labelUrl) shipping.labelUrl = labelUrl;
+  if (error) shipping.error = error;
+  if (errorStep) shipping.errorStep = errorStep;
+  if (updatedAt) shipping.updatedAt = updatedAt;
+  if (warnings.length) shipping.warnings = warnings;
+  if (Object.prototype.hasOwnProperty.call(raw, "labelGenerated")) {
+    shipping.labelGenerated = Boolean(raw.labelGenerated);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "errorPayload")) {
+    shipping.errorPayload = safeJsonDebugValue(raw.errorPayload, null);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "lastRequest")) {
+    shipping.lastRequest = safeJsonDebugValue(raw.lastRequest, null);
+  }
+
+  return Object.keys(shipping).length ? shipping : null;
+}
+
+function normalizeCheckoutIntentPatch(externalReference, patch = {}) {
+  const raw = patch && typeof patch === "object" ? patch : {};
+  const order = raw.order && typeof raw.order === "object"
+    ? normalizeOrderPayloadForShipping(raw.order)
+    : null;
+
+  return {
+    externalReference: normalizeExternalReference(raw.externalReference || externalReference),
+    title: String(raw.title || "").trim().slice(0, 160),
+    payer: normalizeCheckoutIntentPayer(raw.payer),
+    order,
+    items: normalizeCheckoutIntentItems(raw.items),
+    preferenceId: String(raw.preferenceId || raw.preference_id || "").trim(),
+    checkoutUrl: firstNonEmptyString(
+      raw.checkoutUrl,
+      raw.checkout_url,
+      raw.initPoint,
+      raw.init_point,
+      raw.sandboxInitPoint,
+      raw.sandbox_init_point,
+    ),
+    payment: normalizeCheckoutIntentPayment(raw.payment),
+    shipping: normalizeCheckoutIntentShipping(raw.shipping),
+  };
 }
 
 // 2. Intenções de Checkout (Carrinhos/Pedidos Iniciados)
@@ -1909,6 +2063,72 @@ function validateOrderPayloadForShipping(orderPayload = {}, payerPayload = {}) {
   return errors;
 }
 
+function buildAdminSaleFromCheckoutIntent(intent = {}) {
+  const order = normalizeOrderPayloadForShipping(intent?.order || {});
+  const payer = normalizeCheckoutIntentPayer(intent?.payer || {}) || {};
+  const payment = intent?.payment && typeof intent.payment === "object" ? intent.payment : {};
+  const shipping = intent?.shipping && typeof intent.shipping === "object" ? intent.shipping : {};
+  const customer = order.customer && typeof order.customer === "object" ? order.customer : {};
+  const customerAddress = order.customerAddress && typeof order.customerAddress === "object"
+    ? order.customerAddress
+    : {};
+
+  return {
+    externalReference: String(intent.externalReference || "").trim(),
+    title: firstNonEmptyString(order.productTitle, intent.title, "Pedido Power Tech"),
+    productId: String(order.productId || "").trim(),
+    variationId: String(order.variationId || "").trim(),
+    variationLabel: firstNonEmptyString(order.variationLabel, order.variationValue, order.variationName),
+    quantity: Math.max(1, Math.floor(Number(order.quantity || 1) || 1)),
+    amounts: {
+      product: Number(order.productAmount || 0) || 0,
+      shipping: Number(order.shippingAmount || 0) || 0,
+      total: Number(order.total || 0) || 0,
+    },
+    customer: {
+      name: firstNonEmptyString(customer.name, payer.name),
+      email: firstNonEmptyString(customer.email, payer.email),
+      phone: normalizePhone(firstNonEmptyString(customer.phone, payer.phone)),
+      cpf: normalizeCpf(firstNonEmptyString(customer.cpf, customer.document, payer.cpf)),
+    },
+    customerAddress: {
+      street: firstNonEmptyString(customerAddress.street, customerAddress.address),
+      number: String(customerAddress.number || "").trim(),
+      complement: String(customerAddress.complement || "").trim(),
+      district: firstNonEmptyString(customerAddress.district),
+      city: String(customerAddress.city || "").trim(),
+      state: normalizeStateAbbr(customerAddress.state || customerAddress.state_abbr),
+      postalCode: formatPostalCode(customerAddress.postalCode || customerAddress.postal_code),
+    },
+    payment: {
+      id: String(payment.id || "").trim(),
+      status: String(payment.status || "").trim().toLowerCase(),
+      statusDetail: String(payment.statusDetail || payment.status_detail || "").trim(),
+      approvedAt: firstNonEmptyString(payment.approvedAt, payment.dateApproved, payment.date_approved),
+    },
+    shipping: {
+      status: String(shipping.status || "").trim(),
+      paymentStatus: String(shipping.paymentStatus || shipping.payment_status || "").trim().toLowerCase(),
+      melhorEnvioOrderId: firstNonEmptyString(
+        shipping.melhorEnvioOrderId,
+        shipping.melhor_envio_order_id,
+        shipping.orderId,
+      ),
+      purchaseId: firstNonEmptyString(shipping.purchaseId, shipping.purchase_id),
+      protocol: firstNonEmptyString(shipping.protocol),
+      tracking: firstNonEmptyString(shipping.tracking, shipping.trackingCode, shipping.tracking_code),
+      companyName: firstNonEmptyString(shipping.companyName, shipping.company_name),
+      serviceName: firstNonEmptyString(shipping.serviceName, shipping.service_name),
+      labelUrl: firstNonEmptyString(shipping.labelUrl, shipping.label_url),
+      updatedAt: String(shipping.updatedAt || shipping.updated_at || "").trim(),
+      error: firstNonEmptyString(shipping.error),
+      labelGenerated: Boolean(shipping.labelGenerated),
+    },
+    createdAt: String(intent.createdAt || "").trim(),
+    updatedAt: String(intent.updatedAt || "").trim(),
+  };
+}
+
 async function resolveShipmentOrderContext(payment = {}, intent = null) {
   const externalReference = firstNonEmptyString(
     payment?.external_reference,
@@ -3404,6 +3624,34 @@ function createApp() {
       return res.json(intent);
     } catch {
       return res.status(500).json({ message: "Falha ao carregar intent de checkout." });
+    }
+  });
+
+  app.get("/api/admin/sales", async (req, res) => {
+    try {
+      const limit = Math.max(1, Math.min(500, Math.floor(Number(req.query?.limit || 100) || 100)));
+      const db = await connectDB();
+      const docs = await db.collection("checkout_intents")
+        .find({
+          $or: [
+            { "payment.status": "approved" },
+            { "shipping.status": { $in: ["created", "created_without_label"] } },
+          ],
+        })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(limit)
+        .toArray();
+
+      const sales = docs
+        .map((item) => buildAdminSaleFromCheckoutIntent(item))
+        .filter((item) => item.externalReference || item.customer?.name || item.title);
+
+      return res.json({
+        count: sales.length,
+        sales,
+      });
+    } catch {
+      return res.status(500).json({ message: "Falha ao carregar vendas aprovadas." });
     }
   });
 

@@ -274,9 +274,14 @@ function closeSidebar() {
 }
 
 function buildSidebar() {
-  sidebarListEl.innerHTML = CATEGORIES.map((category) => `
+  const categoryLinks = CATEGORIES.map((category) => `
     <button type="button" class="sidebar-link" data-category="${category}">${category}</button>
   `).join("");
+
+  sidebarListEl.innerHTML = `
+    ${categoryLinks}
+    <a class="sidebar-link sidebar-link-accent" href="my-orders.html">Acessar minhas compras</a>
+  `;
 }
 
 function updateCategoryUI() {

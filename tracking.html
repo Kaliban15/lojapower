@@ -12,6 +12,7 @@
     :root {
       --blue-900: #081b4a;
       --blue-700: #0f4df3;
+      --blue-100: #eef4ff;
       --white: #ffffff;
       --gray-900: #212a3d;
       --gray-700: #5a657c;
@@ -26,19 +27,21 @@
       min-height: 100vh;
       font-family: "Manrope", "Segoe UI", sans-serif;
       color: var(--gray-900);
-      background: linear-gradient(180deg, #f8fbff 0%, #f2f6ff 45%, #ffffff 100%);
+      background:
+        radial-gradient(circle at top, rgba(47, 109, 255, 0.12), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #f2f6ff 45%, #ffffff 100%);
       display: grid;
       place-items: center;
-      padding: 1rem;
+      padding: 1rem 1rem 1.3rem;
     }
 
     .card {
-      width: min(560px, 100%);
+      width: min(640px, 100%);
       background: var(--white);
       border: 1px solid var(--gray-200);
-      border-radius: 1rem;
-      padding: 1rem;
-      box-shadow: 0 16px 28px rgba(12, 24, 50, 0.1);
+      border-radius: 1.2rem;
+      padding: 1.2rem;
+      box-shadow: 0 18px 32px rgba(12, 24, 50, 0.12);
     }
 
     .status-tag {
@@ -54,48 +57,87 @@
       color: var(--green);
     }
 
+    .hero {
+      display: grid;
+      gap: 0.3rem;
+    }
+
     h1 {
       margin: 0;
-      font-size: 1.35rem;
+      font-size: clamp(1.5rem, 4vw, 2rem);
       line-height: 1.2;
     }
 
     p {
       margin: 0.55rem 0 0;
       color: var(--gray-700);
-      font-size: 0.9rem;
+      font-size: 0.96rem;
       line-height: 1.45;
     }
 
-    .meta {
-      margin-top: 0.8rem;
-      border-top: 1px solid var(--gray-200);
-      padding-top: 0.75rem;
+    .summary {
+      margin-top: 1rem;
       display: grid;
-      gap: 0.3rem;
-      text-align: left;
-      font-size: 0.82rem;
+      gap: 0.7rem;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    }
+
+    .summary[hidden] {
+      display: none;
+    }
+
+    .summary-card {
+      border: 1px solid var(--gray-200);
+      border-radius: 0.95rem;
+      padding: 0.85rem;
+      background: var(--blue-100);
+      min-height: 96px;
+    }
+
+    .summary-label {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
       color: var(--gray-700);
+    }
+
+    .summary-value {
+      margin: 0.22rem 0 0;
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1.35;
+      color: var(--blue-900);
       word-break: break-word;
     }
 
-    .actions {
+    .helper-note {
       margin-top: 0.95rem;
+      padding: 0.9rem 1rem;
+      border-radius: 0.95rem;
+      background: #f8fbff;
+      border: 1px solid var(--gray-200);
+      font-size: 0.9rem;
+    }
+
+    .actions {
+      margin-top: 1rem;
       display: grid;
-      gap: 0.5rem;
+      gap: 0.65rem;
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .btn {
       border: 0;
-      border-radius: 0.8rem;
-      min-height: 2.7rem;
-      padding: 0.72rem 0.9rem;
+      border-radius: 0.9rem;
+      min-height: 3rem;
+      padding: 0.78rem 1rem;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.94rem;
       font-weight: 800;
       cursor: pointer;
     }
@@ -105,19 +147,15 @@
       background: linear-gradient(120deg, var(--blue-700), #2f6dff);
     }
 
-    .btn-outline {
+    .btn-secondary {
       color: var(--blue-900);
       border: 1px solid #bccfff;
       background: var(--white);
     }
 
-    .btn[disabled] {
-      opacity: 0.65;
-      cursor: not-allowed;
-    }
-
     @media (max-width: 540px) {
       .actions { grid-template-columns: 1fr; }
+      .card { padding: 1rem; }
     }
   </style>
   <link rel="stylesheet" href="whatsapp-float.css" />
@@ -126,15 +164,16 @@
 </head>
 <body>
   <main class="card">
-    <div class="status-tag">Envio criado</div>
-    <h1 id="trackingTitle">Seu envio foi criado com sucesso.</h1>
-    <p id="trackingText">Use os dados abaixo para acompanhar o rastreio.</p>
-    <div class="meta" id="trackingMeta"></div>
+    <section class="hero">
+      <div class="status-tag" id="trackingBadge">Pedido confirmado</div>
+      <h1 id="trackingTitle">Seu pedido foi confirmado.</h1>
+      <p id="trackingText">Estamos acompanhando seu envio e deixando tudo organizado para voce acompanhar com tranquilidade.</p>
+    </section>
+    <section class="summary" id="trackingSummary" hidden></section>
+    <p class="helper-note" id="trackingHelper">Sempre que houver uma nova atualizacao, ela aparecera automaticamente nesta tela e em Minhas Compras.</p>
     <div class="actions">
-      <button type="button" id="copyTrackingBtn" class="btn btn-outline">Copiar codigo de rastreio</button>
-      <a href="index.html" class="btn btn-primary">Voltar para Home</a>
-      <a id="labelLink" href="#" class="btn btn-outline" target="_blank" rel="noopener noreferrer" hidden>Abrir etiqueta</a>
-      <a href="shipping.html" class="btn btn-outline">Novo envio de teste</a>
+      <a href="index.html" class="btn btn-secondary">Voltar para Home</a>
+      <a href="my-orders.html" class="btn btn-primary">Acessar minhas compras</a>
     </div>
   </main>
 </body>

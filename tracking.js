@@ -6,12 +6,12 @@ function getParam(name) {
   return String(params.get(name) || "").trim();
 }
 
-function appendMetaLine(container, label, value) {
-  const text = String(value || "").trim();
-  if (!text) return;
-  const row = document.createElement("div");
-  row.textContent = `${label}: ${text}`;
-  container.appendChild(row);
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 async function readJsonResponse(response) {
@@ -30,16 +30,6 @@ async function readJsonResponse(response) {
   return parsed || {};
 }
 
-async function copyText(value) {
-  if (!value) return false;
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function formatDateTime(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -49,14 +39,26 @@ function formatDateTime(value) {
   return date.toLocaleString("pt-BR");
 }
 
-function resolvePrimaryTrackingCode(state) {
-  return String(state.tracking || state.melhorEnvioTracking || "").trim();
-}
+function humanizeStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const map = {
+    created: "Envio criado",
+    created_without_label: "Envio criado",
+    released: "Envio liberado",
+    posted: "Enviado",
+    shipped: "Em transporte",
+    delivered: "Entregue",
+    pending: "Pendente",
+    waiting_payment: "Aguardando pagamento",
+    payment_approved: "Pagamento aprovado",
+    shipping_error: "Em atualizacao",
+  };
 
-function getCopyButtonLabel(state) {
-  if (state.tracking) return "Copiar codigo de rastreio";
-  if (state.melhorEnvioTracking) return "Copiar codigo Melhor Envio";
-  return "Codigo de rastreio indisponivel";
+  if (!normalized) return "";
+  if (map[normalized]) return map[normalized];
+
+  const text = normalized.replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function mergeTrackingFromApi(state, payload) {
@@ -96,66 +98,89 @@ function createInitialState() {
   };
 }
 
+function createSummaryItems(state) {
+  const items = [];
+  const shippingStatus = humanizeStatus(state.shippingStatus);
+  const purchaseStatus = humanizeStatus(state.purchaseStatus);
+
+  if (shippingStatus) items.push({ label: "Status do envio", value: shippingStatus });
+  if (state.tracking) {
+    items.push({ label: "Codigo de rastreio", value: state.tracking });
+  } else if (state.melhorEnvioTracking) {
+    items.push({ label: "Codigo de acompanhamento", value: state.melhorEnvioTracking });
+  }
+  if (state.company) items.push({ label: "Transportadora", value: state.company });
+  if (state.service) items.push({ label: "Modalidade", value: state.service });
+  if (purchaseStatus) items.push({ label: "Status da compra", value: purchaseStatus });
+  if (state.externalReference) items.push({ label: "Numero do pedido", value: state.externalReference });
+  if (state.deliveredAt) {
+    items.push({ label: "Entregue em", value: formatDateTime(state.deliveredAt) });
+  } else if (state.postedAt) {
+    items.push({ label: "Postado em", value: formatDateTime(state.postedAt) });
+  } else if (state.generatedAt) {
+    items.push({ label: "Ultima atualizacao", value: formatDateTime(state.generatedAt) });
+  } else if (state.lastSyncAt) {
+    items.push({ label: "Ultima atualizacao", value: formatDateTime(state.lastSyncAt) });
+  }
+
+  return items.slice(0, 6);
+}
+
 function renderState(state, elements) {
   const {
+    badge,
     title,
     text,
-    meta,
-    copyTrackingBtn,
-    labelLink,
+    summary,
+    helper,
   } = elements;
 
   const hasIdentity = Boolean(state.order || state.protocol || state.externalReference);
   const hasTracking = Boolean(state.tracking);
   const hasMeTracking = Boolean(state.melhorEnvioTracking);
+  const shippingStatus = String(state.shippingStatus || "").trim().toLowerCase();
+  const delivered = shippingStatus === "delivered" || Boolean(state.deliveredAt);
 
   if (!hasIdentity && !hasTracking && !hasMeTracking) {
-    title.textContent = "Nao encontramos os dados de rastreio.";
-    text.textContent = "Tente voltar e gerar o envio novamente.";
+    badge.textContent = "Pedido em processamento";
+    title.textContent = "Estamos preparando os detalhes do seu pedido.";
+    text.textContent = "Se a compra acabou de ser concluida, aguarde alguns instantes enquanto sincronizamos as informacoes.";
+    helper.textContent = "Assim que o sistema localizar o envio, esta tela sera atualizada automaticamente.";
+  } else if (delivered) {
+    badge.textContent = "Pedido entregue";
+    title.textContent = "Seu pedido foi entregue.";
+    text.textContent = "Obrigado pela compra. Se precisar consultar novamente, a area Minhas Compras continua disponivel.";
+    helper.textContent = "Guarde este pedido em Minhas Compras para consultar o historico sempre que quiser.";
   } else if (hasTracking) {
-    title.textContent = "Seu envio foi criado com sucesso.";
-    text.textContent = "Seu codigo de rastreio final ja esta disponivel.";
-  } else if (hasMeTracking) {
-    title.textContent = "Seu envio foi criado com sucesso.";
-    text.textContent = "A etiqueta foi criada. O codigo final da transportadora pode aparecer em alguns minutos.";
+    badge.textContent = "Rastreio disponivel";
+    title.textContent = "Seu pedido ja esta em rota.";
+    text.textContent = "O codigo de rastreio final ja esta disponivel e seguiremos atualizando este acompanhamento automaticamente.";
+    helper.textContent = "Voce tambem pode consultar esse pedido a qualquer momento pela area Minhas Compras.";
+  } else if (hasMeTracking || state.order) {
+    badge.textContent = "Envio em preparacao";
+    title.textContent = "Seu envio ja foi criado.";
+    text.textContent = "Seu pedido esta seguindo para as proximas etapas. O codigo final da transportadora pode aparecer em alguns minutos.";
+    helper.textContent = "Assim que o rastreio final estiver disponivel, ele aparecera aqui automaticamente.";
   } else {
-    title.textContent = "Seu envio foi criado com sucesso.";
-    text.textContent = "Estamos buscando atualizacoes de rastreio em tempo real.";
+    badge.textContent = "Pagamento aprovado";
+    title.textContent = "Recebemos seu pedido com sucesso.";
+    text.textContent = "Agora estamos organizando o envio para que voce acompanhe tudo de forma simples e segura.";
+    helper.textContent = "Esta pagina atualiza sozinha enquanto o envio e preparado.";
   }
 
-  meta.innerHTML = "";
-  appendMetaLine(meta, "Ordem Melhor Envio", state.order);
-  appendMetaLine(meta, "Protocolo", state.protocol);
-  appendMetaLine(meta, "Status do envio", state.shippingStatus);
-  appendMetaLine(meta, "Rastreio (transportadora)", state.tracking);
-  appendMetaLine(meta, "Codigo Melhor Envio", state.melhorEnvioTracking);
-  appendMetaLine(meta, "Transportadora", state.company);
-  appendMetaLine(meta, "Servico", state.service);
-  appendMetaLine(meta, "Status da compra", state.purchaseStatus);
-  appendMetaLine(meta, "Etiqueta gerada em", formatDateTime(state.generatedAt));
-  appendMetaLine(meta, "Postado em", formatDateTime(state.postedAt));
-  appendMetaLine(meta, "Entregue em", formatDateTime(state.deliveredAt));
-  appendMetaLine(meta, "Referencia", state.externalReference);
-
-  if (state.lastSyncAt) {
-    appendMetaLine(meta, "Ultima atualizacao", formatDateTime(state.lastSyncAt));
+  const summaryItems = createSummaryItems(state);
+  if (!summaryItems.length) {
+    summary.hidden = true;
+    summary.innerHTML = "";
+  } else {
+    summary.hidden = false;
+    summary.innerHTML = summaryItems.map((item) => `
+      <article class="summary-card">
+        <p class="summary-label">${escapeHtml(item.label)}</p>
+        <p class="summary-value">${escapeHtml(item.value)}</p>
+      </article>
+    `).join("");
   }
-  if (state.pollAttempt > 0 && !state.tracking) {
-    appendMetaLine(meta, "Atualizacao automatica", `${state.pollAttempt}/${MAX_POLL_ATTEMPTS}`);
-  }
-  if (state.syncError) {
-    appendMetaLine(meta, "Aviso", state.syncError);
-  }
-
-  if (state.labelUrl && /^https?:\/\//.test(state.labelUrl)) {
-    labelLink.hidden = false;
-    labelLink.href = state.labelUrl;
-  }
-
-  const codeToCopy = resolvePrimaryTrackingCode(state);
-  copyTrackingBtn.dataset.code = codeToCopy;
-  copyTrackingBtn.disabled = !codeToCopy;
-  copyTrackingBtn.textContent = getCopyButtonLabel(state);
 }
 
 async function fetchTrackingByOrder(orderId) {
@@ -186,34 +211,15 @@ async function pollTracking(state, elements) {
 
 function init() {
   const elements = {
+    badge: document.getElementById("trackingBadge"),
     title: document.getElementById("trackingTitle"),
     text: document.getElementById("trackingText"),
-    meta: document.getElementById("trackingMeta"),
-    copyTrackingBtn: document.getElementById("copyTrackingBtn"),
-    labelLink: document.getElementById("labelLink"),
+    summary: document.getElementById("trackingSummary"),
+    helper: document.getElementById("trackingHelper"),
   };
 
   const state = createInitialState();
   renderState(state, elements);
-
-  elements.copyTrackingBtn.addEventListener("click", async () => {
-    const code = String(elements.copyTrackingBtn.dataset.code || "").trim();
-    if (!code) return;
-
-    const copied = await copyText(code);
-    if (copied) {
-      elements.copyTrackingBtn.textContent = "Codigo copiado";
-      setTimeout(() => {
-        renderState(state, elements);
-      }, 1600);
-      return;
-    }
-
-    elements.copyTrackingBtn.textContent = "Nao foi possivel copiar";
-    setTimeout(() => {
-      renderState(state, elements);
-    }, 1600);
-  });
 
   void pollTracking(state, elements);
 }
