@@ -5,6 +5,8 @@ const BLANK_IMAGE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABA
 const MP_REDIRECT_DELAY_MS = 6000;
 const SHIPPING_STORAGE_KEY = "power_shipping_selection_v1";
 const SHIPPING_SELECTION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const INLINE_QUANTITY_LIMIT = 6;
+const EXTENDED_QUANTITY_LIMIT = 12;
 
 const state = {
   basePrice: 299.9,
@@ -16,6 +18,8 @@ const state = {
   allProducts: [],
   activeImage: "",
   activeVariationId: "",
+  quantity: 1,
+  quantityExpanded: false,
   searchDebounce: null,
   searchLastResults: [],
   loggedSearchTerms: new Set(),
@@ -48,6 +52,11 @@ const elements = {
   oldPriceRow: document.getElementById("oldPriceRow"),
   discountBadge: document.getElementById("discountBadge"),
   stickyPrice: document.getElementById("stickyPrice"),
+  quantityTrigger: document.getElementById("quantityTrigger"),
+  stickyQuantityLabel: document.getElementById("stickyQuantityLabel"),
+  quantityModal: document.getElementById("quantityModal"),
+  quantityOptions: document.getElementById("quantityOptions"),
+  quantityCloseBtn: document.getElementById("quantityCloseBtn"),
   buyNowBtn: document.getElementById("buyNowBtn"),
   stickyBuyBtn: document.getElementById("stickyBuyBtn"),
   cartLink: document.querySelector(".cart"),
@@ -306,6 +315,7 @@ function parseParams() {
   const params = new URLSearchParams(window.location.search);
   state.productId = String(params.get("id") || "").trim();
   state.activeVariationId = String(params.get("variation") || "").trim();
+  state.quantity = Math.max(1, Math.min(EXTENDED_QUANTITY_LIMIT, Math.floor(Number(params.get("quantity") || 1) || 1)));
   state.autoPayOnInit = String(params.get("autopay") || "").trim() === "1";
 
   const coupon = (params.get("cupom") || params.get("coupon") || "").trim().toUpperCase();
@@ -449,10 +459,68 @@ function round2(value) {
   return Number((Number(value) || 0).toFixed(2));
 }
 
+function getQuantityLabel(quantity = state.quantity) {
+  const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  return safeQuantity === 1 ? "1 pc" : `${safeQuantity} pcs`;
+}
+
+function getQuantityOptionMarkup(quantity) {
+  const activeClass = quantity === state.quantity ? "active" : "";
+  const unitLabel = quantity === 1 ? "unidade" : "unidades";
+  return `<button type="button" class="quantity-option ${activeClass}" data-quantity="${quantity}">${quantity} ${unitLabel}</button>`;
+}
+
+function renderQuantitySelector() {
+  if (elements.stickyQuantityLabel) {
+    elements.stickyQuantityLabel.textContent = getQuantityLabel();
+  }
+  if (!elements.quantityOptions) return;
+
+  const limit = state.quantityExpanded ? EXTENDED_QUANTITY_LIMIT : INLINE_QUANTITY_LIMIT;
+  const options = [];
+  for (let quantity = 1; quantity <= limit; quantity += 1) {
+    options.push(getQuantityOptionMarkup(quantity));
+  }
+
+  if (state.quantityExpanded) {
+    options.push('<button type="button" class="quantity-option quantity-option-back" data-quantity-view="default">Voltar</button>');
+  } else {
+    options.push('<button type="button" class="quantity-option quantity-option-more" data-quantity-view="extended">Mais de 6 unidades</button>');
+  }
+
+  elements.quantityOptions.innerHTML = options.join("");
+}
+
+function openQuantityModal() {
+  if (!elements.quantityModal) return;
+  state.quantityExpanded = state.quantity > INLINE_QUANTITY_LIMIT;
+  renderQuantitySelector();
+  elements.quantityModal.hidden = false;
+  elements.quantityModal.setAttribute("aria-hidden", "false");
+  if (elements.quantityTrigger) {
+    elements.quantityTrigger.setAttribute("aria-expanded", "true");
+  }
+  document.body.classList.add("mp-redirect-lock");
+}
+
+function closeQuantityModal() {
+  if (!elements.quantityModal) return;
+  state.quantityExpanded = false;
+  elements.quantityModal.hidden = true;
+  elements.quantityModal.setAttribute("aria-hidden", "true");
+  if (elements.quantityTrigger) {
+    elements.quantityTrigger.setAttribute("aria-expanded", "false");
+  }
+  if (!elements.mpRedirectModal || elements.mpRedirectModal.hidden) {
+    document.body.classList.remove("mp-redirect-lock");
+  }
+}
+
 function buildShippingPageUrl() {
   const params = new URLSearchParams();
   if (state.productId) params.set("product", state.productId);
   if (state.activeVariationId) params.set("variation", state.activeVariationId);
+  params.set("quantity", String(state.quantity));
   if (state.couponCode) params.set("cupom", state.couponCode);
   params.set("discount", String(Math.round(state.discountRate * 100)));
 
@@ -481,7 +549,8 @@ function getValidatedShippingSelection() {
 
   const sameProduct = String(saved.productId || "") === String(state.productId || "");
   const sameVariation = String(saved.variationId || "") === String(state.activeVariationId || "");
-  if (!sameProduct || !sameVariation) {
+  const sameQuantity = Math.max(1, Math.floor(Number(saved.quantity || 1) || 1)) === state.quantity;
+  if (!sameProduct || !sameVariation || !sameQuantity) {
     return null;
   }
 
@@ -720,11 +789,13 @@ function renderPricing() {
 
   const installment = finalPrice / 6;
   state.finalPrice = round2(finalPrice);
+  const selectedTotal = round2(state.finalPrice * state.quantity);
 
   elements.heroBasePrice.textContent = currency.format(normalPrice);
   elements.heroDiscountPrice.textContent = currency.format(finalPrice);
   elements.heroInstallment.textContent = currency.format(installment);
-  elements.stickyPrice.textContent = currency.format(finalPrice);
+  elements.stickyPrice.textContent = currency.format(selectedTotal);
+  renderQuantitySelector();
 
   const shippingUrl = buildShippingPageUrl();
   elements.buyNowBtn.href = shippingUrl;
@@ -813,8 +884,10 @@ function buildDirectCheckoutPayload(shippingSelection) {
   const title = activeVariant
     ? `${state.product?.title || "Pedido Power Tech"} - ${variationLabel}`
     : (state.product?.title || "Pedido Power Tech");
-  const fallbackTotal = round2(state.basePrice * (1 - state.discountRate));
-  const productAmount = round2(state.finalPrice || fallbackTotal);
+  const quantity = Math.max(1, Math.floor(Number(state.quantity || 1) || 1));
+  const fallbackUnitPrice = round2(state.basePrice * (1 - state.discountRate));
+  const unitPrice = round2(state.finalPrice || fallbackUnitPrice);
+  const productAmount = round2(unitPrice * quantity);
   const shippingAmount = round2(shippingSelection?.shipping?.price || 0);
   const total = round2(productAmount + shippingAmount);
 
@@ -828,8 +901,8 @@ function buildDirectCheckoutPayload(shippingSelection) {
     {
       id: `order-${state.productId || "main"}`,
       title,
-      quantity: 1,
-      unitPrice: productAmount,
+      quantity,
+      unitPrice,
       currencyId: "BRL",
     },
   ];
@@ -860,7 +933,7 @@ function buildDirectCheckoutPayload(shippingSelection) {
       variationName: String(activeVariant?.name || "").trim(),
       variationValue: String(activeVariant?.value || activeVariant?.title || "").trim(),
       variationLabel,
-      quantity: 1,
+      quantity,
       couponCode: state.couponCode,
       productAmount,
       shippingAmount,
@@ -926,6 +999,43 @@ function wireEvents() {
       openDirectCheckoutPro();
     });
   });
+
+  if (elements.quantityTrigger) {
+    elements.quantityTrigger.addEventListener("click", () => {
+      openQuantityModal();
+    });
+  }
+
+  if (elements.quantityCloseBtn) {
+    elements.quantityCloseBtn.addEventListener("click", () => {
+      closeQuantityModal();
+    });
+  }
+
+  if (elements.quantityModal) {
+    elements.quantityModal.addEventListener("click", (event) => {
+      if (event.target === elements.quantityModal) {
+        closeQuantityModal();
+      }
+    });
+  }
+
+  if (elements.quantityOptions) {
+    elements.quantityOptions.addEventListener("click", (event) => {
+      const quantityBtn = event.target.closest("[data-quantity]");
+      if (quantityBtn) {
+        state.quantity = Math.max(1, Math.min(EXTENDED_QUANTITY_LIMIT, Math.floor(Number(quantityBtn.getAttribute("data-quantity") || 1) || 1)));
+        closeQuantityModal();
+        renderPricing();
+        return;
+      }
+
+      const viewBtn = event.target.closest("[data-quantity-view]");
+      if (!viewBtn) return;
+      state.quantityExpanded = viewBtn.getAttribute("data-quantity-view") === "extended";
+      renderQuantitySelector();
+    });
+  }
 
   elements.openSidebarBtn.addEventListener("click", openSidebar);
   elements.closeSidebarBtn.addEventListener("click", closeSidebar);
@@ -1009,6 +1119,12 @@ function wireEvents() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".head-search")) {
       hideSearchDropdown();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && elements.quantityModal && !elements.quantityModal.hidden) {
+      closeQuantityModal();
     }
   });
 

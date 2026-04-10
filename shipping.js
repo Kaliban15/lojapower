@@ -9,6 +9,7 @@ const currency = new Intl.NumberFormat("pt-BR", {
 const state = {
   productId: "",
   variationId: "",
+  quantity: 1,
   couponCode: "",
   discountRate: 0.3,
   returnUrl: "",
@@ -94,6 +95,7 @@ function parseParams() {
   const params = new URLSearchParams(window.location.search);
   state.productId = normalizeText(params.get("product") || params.get("id"));
   state.variationId = normalizeText(params.get("variation"));
+  state.quantity = Math.max(1, Math.min(12, Math.floor(Number(params.get("quantity") || 1) || 1)));
   state.couponCode = normalizeText(params.get("cupom") || params.get("coupon")).toUpperCase();
 
   const discountRaw = Number(params.get("discount") || params.get("desconto") || 0);
@@ -123,13 +125,14 @@ function resolveBaseAmount() {
   const variation = state.variation;
   const normalPrice = Number(variation?.price || state.product?.price || 0);
   const promoPrice = Number(variation?.promoPrice || state.product?.promoPrice || 0);
+  const quantity = Math.max(1, Math.floor(Number(state.quantity || 1) || 1));
 
   if (promoPrice > 0 && promoPrice < normalPrice) {
-    return Number(promoPrice.toFixed(2));
+    return Number((promoPrice * quantity).toFixed(2));
   }
 
   const discounted = normalPrice * (1 - state.discountRate);
-  return Number(discounted.toFixed(2));
+  return Number((discounted * quantity).toFixed(2));
 }
 
 function getVariationLabel(variation) {
@@ -142,8 +145,8 @@ function getVariationLabel(variation) {
 function getProductTitle() {
   if (!state.product) return "Produto";
   const variationLabel = getVariationLabel(state.variation);
-  if (variationLabel) return `${state.product.title} - ${variationLabel}`;
-  return state.product.title;
+  const baseTitle = variationLabel ? `${state.product.title} - ${variationLabel}` : state.product.title;
+  return state.quantity > 1 ? `${baseTitle} x${state.quantity}` : baseTitle;
 }
 
 function updateSummary() {
@@ -302,6 +305,7 @@ function buildDefaultReturnUrl() {
   const params = new URLSearchParams();
   if (state.productId) params.set("id", state.productId);
   if (state.variationId) params.set("variation", state.variationId);
+  params.set("quantity", String(state.quantity));
   if (state.couponCode) params.set("cupom", state.couponCode);
   params.set("autopay", "1");
   return `/produto.html?${params.toString()}`;
@@ -318,6 +322,8 @@ function buildCheckoutPreferencePayload(formPayload, quote) {
   const total = Number((productAmount + shippingAmount).toFixed(2));
   const title = getProductTitle();
   const externalReference = `POWER-${Date.now()}`;
+  const quantity = Math.max(1, Math.floor(Number(state.quantity || 1) || 1));
+  const unitPrice = Number((productAmount / quantity).toFixed(2));
   const serviceId = parsePositiveInteger(quote?.id || quote?.serviceId || quote?.service);
   const rawAgency = quote?.raw?.agency_id ?? quote?.raw?.agency?.id ?? quote?.raw?.agency ?? "";
   const agencyId = parsePositiveInteger(rawAgency);
@@ -337,8 +343,8 @@ function buildCheckoutPreferencePayload(formPayload, quote) {
       {
         id: `order-${state.product?.id || state.productId || "main"}`,
         title,
-        quantity: 1,
-        unitPrice: productAmount,
+        quantity,
+        unitPrice,
         currencyId: "BRL",
       },
       {
@@ -362,7 +368,7 @@ function buildCheckoutPreferencePayload(formPayload, quote) {
       variationName: String(state.variation?.name || "").trim(),
       variationValue: String(state.variation?.value || state.variation?.title || "").trim(),
       variationLabel: getVariationLabel(state.variation),
-      quantity: 1,
+      quantity,
       couponCode: state.couponCode || "CLIENTE30",
       productAmount,
       shippingAmount,
@@ -436,6 +442,7 @@ function saveShippingSelection() {
     productId: state.product?.id || state.productId || "",
     variationId: state.variation?.id || state.variationId || "",
     variationLabel: getVariationLabel(state.variation),
+    quantity: Math.max(1, Math.floor(Number(state.quantity || 1) || 1)),
     couponCode: state.couponCode || "CLIENTE30",
     discountRate: state.discountRate,
     productTitle: getProductTitle(),
@@ -540,7 +547,7 @@ async function createShipmentDirectly() {
         productId: state.product?.id || state.productId,
         variationId: state.variation?.id || state.variationId,
         toPostalCode: formPayload.address.postalCode,
-        quantity: 1,
+        quantity: Math.max(1, Math.floor(Number(state.quantity || 1) || 1)),
       }),
     });
     
@@ -702,7 +709,7 @@ async function calculateShipping() {
         productId: state.product?.id || state.productId,
         variationId: state.variation?.id || state.variationId,
         toPostalCode: formPayload.address.postalCode,
-        quantity: 1,
+        quantity: Math.max(1, Math.floor(Number(state.quantity || 1) || 1)),
       }),
     });
     const data = await readJsonResponse(response);
@@ -760,6 +767,7 @@ async function loadProductContext() {
   const params = new URLSearchParams();
   params.set("id", state.productId);
   if (state.variationId) params.set("variation", state.variationId);
+  params.set("quantity", String(state.quantity));
   if (state.couponCode) params.set("cupom", state.couponCode);
   elements.backToProductLink.href = `/produto.html?${params.toString()}`;
 }

@@ -638,6 +638,115 @@ body {
 .sticky-checkout span { color: var(--gray-700); font-size: 0.75rem; }
 .sticky-checkout strong { color: var(--blue-900); font-size: 0.94rem; }
 
+.quantity-trigger {
+  min-width: 4.65rem;
+  min-height: 3rem;
+  border: 1px solid #d7e0f3;
+  border-radius: 0.9rem;
+  background: #fff;
+  color: var(--blue-900);
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.08rem;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(11, 27, 63, 0.08);
+}
+
+.quantity-trigger-label {
+  font-size: 0.63rem;
+  line-height: 1;
+  color: var(--gray-700);
+}
+
+.quantity-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgba(10, 16, 30, 0.48);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.quantity-modal[hidden] {
+  display: none !important;
+}
+
+.quantity-dialog {
+  width: min(100%, 31rem);
+  max-height: min(78vh, 40rem);
+  background: #fff;
+  border-radius: 1.2rem 1.2rem 0 0;
+  overflow: hidden;
+  box-shadow: 0 -14px 40px rgba(7, 20, 54, 0.22);
+}
+
+.quantity-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1rem 0.9rem;
+  border-bottom: 1px solid #e4eaf6;
+}
+
+.quantity-dialog-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--blue-900);
+}
+
+.quantity-close {
+  border: 0;
+  background: transparent;
+  color: #5f6e89;
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.quantity-options {
+  display: flex;
+  flex-direction: column;
+  max-height: min(60vh, 32rem);
+  overflow-y: auto;
+}
+
+.quantity-option {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e9eef8;
+  background: #fff;
+  color: #22314f;
+  padding: 1rem;
+  text-align: center;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.quantity-option.active {
+  background: #eef4ff;
+  color: var(--blue-900);
+  font-weight: 700;
+}
+
+.quantity-option-more {
+  color: var(--blue-900);
+  font-weight: 700;
+}
+
+.quantity-option-back {
+  background: #f7f9fd;
+  color: #51617d;
+  font-size: 0.92rem;
+}
+
 .disclaimer {
   margin: 0.9rem auto 0;
   text-align: center;
