@@ -461,7 +461,7 @@ function round2(value) {
 
 function getQuantityLabel(quantity = state.quantity) {
   const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
-  return safeQuantity === 1 ? "1 pc" : `${safeQuantity} pcs`;
+  return `${safeQuantity} Un`;
 }
 
 function getQuantityOptionMarkup(quantity) {
