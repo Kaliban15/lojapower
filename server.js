@@ -57,13 +57,17 @@ const MELHOR_ENVIO_REDIRECT_PATH = (() => {
 })();
 const MELHOR_ENVIO_REDIRECT_URI = String(
   process.env.ME_REDIRECT_URI
-  || "https://d690h71m-3000.brs.devtunnels.ms/callback/melhorenvio",
+  || "",
 ).trim();
 const MELHOR_ENVIO_ENDPOINTS = {
   production: "https://melhorenvio.com.br",
   sandbox: "https://sandbox.melhorenvio.com.br",
 };
-const MELHOR_ENVIO_REFRESH_MARGIN_MS = 60 * 1000;
+const MELHOR_ENVIO_REFRESH_MARGIN_MS = 7 * 24 * 60 * 60 * 1000;
+const MELHOR_ENVIO_MAINTENANCE_INTERVAL_MS = Math.max(
+  60 * 60 * 1000,
+  Math.floor(Number(process.env.ME_TOKEN_MAINTENANCE_INTERVAL_MS || 12 * 60 * 60 * 1000) || 12 * 60 * 60 * 1000),
+);
 const MELHOR_ENVIO_REQUIRED_SHIPMENT_SCOPES = [
   "shipping-calculate",
   "orders-read",
@@ -781,8 +785,10 @@ function getMissingScopes(currentScopes, requiredScopes = []) {
 }
 
 function getShippingIntegrationReadiness(token = null) {
+  const reconnectRequired = Boolean(token?.reconnectRequired);
   const connected = Boolean(
     token?.accessToken
+    && !reconnectRequired
     && String(token?.environment || MELHOR_ENVIO_ENVIRONMENT) === MELHOR_ENVIO_ENVIRONMENT,
   );
   const tokenScopes = token?.scope ? normalizeScopes(token.scope) : "";
@@ -794,6 +800,8 @@ function getShippingIntegrationReadiness(token = null) {
     connected,
     tokenScopes,
     missingShipmentScopes,
+    reconnectRequired,
+    refreshErrorMessage: reconnectRequired ? String(token?.lastRefreshError || "") : "",
     readyForShipment,
   };
 }
@@ -958,24 +966,36 @@ async function melhorEnvioTokenRequest(formData = {}) {
 
   if (!response.ok) {
     const detail = parsed?.message || parsed?.error_description || parsed?.error || "Falha ao autenticar no Melhor Envio.";
-    const error = new Error(String(detail));
+    const error = isInvalidRefreshTokenError(parsed, detail)
+      ? buildMelhorEnvioReconnectError("A autorizacao da Melhor Envio expirou ou foi revogada. Reconecte o app no painel do vendedor.")
+      : new Error(String(detail));
     error.statusCode = response.status;
+    error.payload = parsed;
     throw error;
   }
 
   return parsed || {};
 }
 
-async function refreshMelhorEnvioTokenIfNeeded(token = null) {
+async function refreshMelhorEnvioTokenIfNeeded(token = null, options = {}) {
   const current = token || await readMelhorEnvioToken();
-  if (!current?.accessToken) return null;
+  const force = Boolean(options.force);
+  if (!current?.accessToken && !current?.refreshToken) return null;
   if (String(current.environment || MELHOR_ENVIO_ENVIRONMENT) !== MELHOR_ENVIO_ENVIRONMENT) return null;
+  if (current.reconnectRequired && !force) {
+    throw buildMelhorEnvioReconnectError(String(current.lastRefreshError || "Reconecte o app Melhor Envio no painel do vendedor."));
+  }
 
   const expiresAtMs = Date.parse(String(current.expiresAt || ""));
-  const shouldRefresh = Number.isFinite(expiresAtMs) && (Date.now() >= (expiresAtMs - MELHOR_ENVIO_REFRESH_MARGIN_MS));
+  const shouldRefresh = force
+    || !Number.isFinite(expiresAtMs)
+    || (Date.now() >= (expiresAtMs - MELHOR_ENVIO_REFRESH_MARGIN_MS));
   if (!shouldRefresh) return current;
 
-  if (!current.refreshToken) return current;
+  if (!current.refreshToken) {
+    if (!current.accessToken) return null;
+    return current;
+  }
 
   const refreshedRaw = await melhorEnvioTokenRequest({
     grant_type: "refresh_token",
@@ -989,7 +1009,7 @@ async function refreshMelhorEnvioTokenIfNeeded(token = null) {
   return refreshed;
 }
 
-async function getMelhorEnvioAccessToken() {
+async function getMelhorEnvioAccessToken(options = {}) {
   let token = await readMelhorEnvioToken();
   if (!token?.accessToken) {
     const error = new Error("Melhor Envio nao conectado. Autorize o app no painel do vendedor.");
@@ -998,10 +1018,18 @@ async function getMelhorEnvioAccessToken() {
   }
 
   try {
-    token = await refreshMelhorEnvioTokenIfNeeded(token);
-  } catch {
-    const error = new Error("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.");
+    token = await refreshMelhorEnvioTokenIfNeeded(token, { force: Boolean(options.forceRefresh) });
+  } catch (refreshError) {
+    if (refreshError?.reconnectRequired) {
+      await writeMelhorEnvioToken(markMelhorEnvioReconnectRequired(token, refreshError));
+    }
+    const error = new Error(refreshError?.reconnectRequired
+      ? "Nao foi possivel renovar o token da Melhor Envio. Reconecte o app."
+      : "Nao foi possivel renovar o token da Melhor Envio. Tente novamente em instantes.");
     error.statusCode = 401;
+    error.code = refreshError?.code || "MELHOR_ENVIO_REFRESH_FAILED";
+    error.reconnectRequired = Boolean(refreshError?.reconnectRequired);
+    error.payload = refreshError?.payload || null;
     throw error;
   }
 
@@ -1014,28 +1042,99 @@ async function getMelhorEnvioAccessToken() {
   return token.accessToken;
 }
 
-async function melhorEnvioApiRequest(pathname = "", options = {}) {
-  const accessToken = await getMelhorEnvioAccessToken();
-  const url = `${getMelhorEnvioBaseEndpoint()}/api/v2/${String(pathname || "").replace(/^\/+/, "")}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
+async function readMelhorEnvioTokenForStatus() {
+  let token = await readMelhorEnvioToken();
+  if (!token?.accessToken) return { token, error: null };
 
-  const raw = await response.text();
-  let parsed = null;
   try {
-    parsed = raw ? JSON.parse(raw) : null;
-  } catch {
-    parsed = null;
+    token = await refreshMelhorEnvioTokenIfNeeded(token);
+    return { token, error: null };
+  } catch (error) {
+    if (error?.reconnectRequired) {
+      token = markMelhorEnvioReconnectRequired(token, error);
+      await writeMelhorEnvioToken(token);
+    }
+    return { token, error };
+  }
+}
+
+async function maintainMelhorEnvioToken(reason = "scheduled") {
+  const token = await readMelhorEnvioToken();
+  if (!token?.accessToken || !token?.refreshToken) return null;
+
+  try {
+    const refreshed = await refreshMelhorEnvioTokenIfNeeded(token);
+    if (refreshed !== token) {
+      console.info(`[melhor-envio] token atualizado por manutencao: ${reason}`);
+    }
+    return refreshed;
+  } catch (error) {
+    if (error?.reconnectRequired) {
+      await writeMelhorEnvioToken(markMelhorEnvioReconnectRequired(token, error));
+    }
+    console.warn("[melhor-envio] falha na manutencao do token:", error?.message || error);
+    return null;
+  }
+}
+
+let melhorEnvioMaintenanceStarted = false;
+function startMelhorEnvioTokenMaintenance() {
+  if (melhorEnvioMaintenanceStarted) return;
+  melhorEnvioMaintenanceStarted = true;
+
+  const initialTimer = setTimeout(() => {
+    void maintainMelhorEnvioToken("startup");
+  }, 3000);
+  if (typeof initialTimer.unref === "function") initialTimer.unref();
+
+  const timer = setInterval(() => {
+    void maintainMelhorEnvioToken("interval");
+  }, MELHOR_ENVIO_MAINTENANCE_INTERVAL_MS);
+  if (typeof timer.unref === "function") timer.unref();
+}
+
+async function melhorEnvioApiRequest(pathname = "", options = {}) {
+  const url = `${getMelhorEnvioBaseEndpoint()}/api/v2/${String(pathname || "").replace(/^\/+/, "")}`;
+  let forcedRefresh = Boolean(options.forceRefresh);
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const accessToken = await getMelhorEnvioAccessToken({ forceRefresh: forcedRefresh && attempt === 1 });
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+    const raw = await response.text();
+    let parsed = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
+
+    if (response.status === 401 && !forcedRefresh) {
+      forcedRefresh = true;
+      try {
+        await refreshMelhorEnvioTokenIfNeeded(null, { force: true });
+      } catch (refreshError) {
+        if (refreshError?.reconnectRequired) {
+          const token = await readMelhorEnvioToken();
+          await writeMelhorEnvioToken(markMelhorEnvioReconnectRequired(token, refreshError));
+        }
+        throw refreshError;
+      }
+      continue;
+    }
+
+    return { response, parsed };
   }
 
-  return { response, parsed };
+  throw new Error("Falha ao consultar Melhor Envio apos renovar token.");
 }
 
 function extractMelhorEnvioError(payload) {
@@ -1049,6 +1148,41 @@ function extractMelhorEnvioError(payload) {
     if (typeof first?.message === "string" && first.message.trim()) return first.message.trim();
   }
   return "Falha na integracao com Melhor Envio.";
+}
+
+function isInvalidRefreshTokenError(payload, message = "") {
+  const values = [
+    message,
+    payload?.message,
+    payload?.error,
+    payload?.error_description,
+    Array.isArray(payload?.errors)
+      ? payload.errors.map((entry) => (
+        typeof entry === "string" ? entry : `${entry?.message || ""} ${entry?.error || ""}`
+      )).join(" ")
+      : "",
+  ].join(" ").toLowerCase();
+
+  return (/refresh token/.test(values) && /invalid|revoked|expired|expirad|invalido|inv.lido/.test(values))
+    || /invalid_grant/.test(values);
+}
+
+function buildMelhorEnvioReconnectError(message = "A autorizacao da Melhor Envio expirou ou foi revogada. Reconecte o app.") {
+  const error = new Error(message);
+  error.statusCode = 401;
+  error.code = "MELHOR_ENVIO_REFRESH_TOKEN_INVALID";
+  error.reconnectRequired = true;
+  return error;
+}
+
+function markMelhorEnvioReconnectRequired(token = null, error = null) {
+  if (!token || typeof token !== "object") return null;
+  return {
+    ...token,
+    reconnectRequired: true,
+    lastRefreshError: String(error?.message || "Refresh token invalido. Reconecte o app."),
+    lastRefreshErrorAt: new Date().toISOString(),
+  };
 }
 
 function normalizeMelhorEnvioTrackingEntry(payload = {}, requestedOrderId = "") {
@@ -3196,10 +3330,11 @@ function createApp() {
 
   app.get("/api/melhorenvio/status", async (req, res) => {
     try {
-      const [token, shippingConfig] = await Promise.all([
-        readMelhorEnvioToken(),
+      const [tokenStatus, shippingConfig] = await Promise.all([
+        readMelhorEnvioTokenForStatus(),
         readShippingConfig(),
       ]);
+      const token = tokenStatus.token;
       const redirectUri = resolveMelhorEnvioRedirectUri(req);
       const scopes = resolveMelhorEnvioAuthScopes();
       const readiness = getShippingIntegrationReadiness(token);
@@ -3211,6 +3346,8 @@ function createApp() {
         scopes,
         tokenScopes: readiness.tokenScopes,
         missingShipmentScopes: readiness.missingShipmentScopes,
+        reconnectRequired: readiness.reconnectRequired,
+        refreshErrorMessage: readiness.refreshErrorMessage || String(tokenStatus.error?.message || ""),
         readyForShipment: readiness.readyForShipment,
         redirectUri,
         tokenExpiresAt: readiness.connected ? String(token?.expiresAt || "") : "",
@@ -3325,7 +3462,11 @@ function createApp() {
       const token = normalizeMelhorEnvioTokenPayload(tokenRaw, null);
       await writeMelhorEnvioToken(token);
 
-      return res.send(html("Conexao concluida", "Aplicativo conectado com sucesso ao Melhor Envio Sandbox.", true));
+      return res.send(html(
+        "Conexao concluida",
+        `Aplicativo conectado com sucesso ao Melhor Envio ${MELHOR_ENVIO_ENVIRONMENT === "sandbox" ? "Sandbox" : "Producao"}.`,
+        true,
+      ));
     } catch (error) {
       const message = error?.message || "Nao foi possivel concluir a conexao com a Melhor Envio.";
       return res.status(error?.statusCode || 500).send(html("Falha na conexao", message));
@@ -3334,13 +3475,16 @@ function createApp() {
 
   app.get("/api/shipping/config", async (_req, res) => {
     try {
-      const [config, token] = await Promise.all([readShippingConfig(), readMelhorEnvioToken()]);
+      const [config, tokenStatus] = await Promise.all([readShippingConfig(), readMelhorEnvioTokenForStatus()]);
+      const token = tokenStatus.token;
       const readiness = getShippingIntegrationReadiness(token);
       return res.json({
         environment: MELHOR_ENVIO_ENVIRONMENT,
         connected: readiness.connected,
         tokenScopes: readiness.tokenScopes,
         missingShipmentScopes: readiness.missingShipmentScopes,
+        reconnectRequired: readiness.reconnectRequired,
+        refreshErrorMessage: readiness.refreshErrorMessage || String(tokenStatus.error?.message || ""),
         readyForShipment: readiness.readyForShipment,
         config,
       });
@@ -3442,6 +3586,8 @@ function createApp() {
     } catch (error) {
       return res.status(error?.statusCode || 500).json({
         message: error?.message || "Falha ao calcular frete no Melhor Envio.",
+        code: error?.code || undefined,
+        reconnectRequired: Boolean(error?.reconnectRequired),
       });
     }
   });
@@ -3892,12 +4038,15 @@ function createApp() {
         });
       }
 
-      const token = await readMelhorEnvioToken();
+      const { token } = await readMelhorEnvioTokenForStatus();
       const readiness = getShippingIntegrationReadiness(token);
       if (!readiness.connected) {
         return res.status(409).json({
-          message: "Integracao de frete indisponivel. Conecte a Melhor Envio no painel do vendedor.",
-          code: "SHIPPING_NOT_CONNECTED",
+          message: readiness.reconnectRequired
+            ? "Nao foi possivel renovar o token da Melhor Envio. Reconecte o app."
+            : "Integracao de frete indisponivel. Conecte a Melhor Envio no painel do vendedor.",
+          code: readiness.reconnectRequired ? "MELHOR_ENVIO_REFRESH_TOKEN_INVALID" : "SHIPPING_NOT_CONNECTED",
+          reconnectRequired: readiness.reconnectRequired,
         });
       }
       if (!readiness.readyForShipment) {
@@ -4369,6 +4518,7 @@ app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
   void bootstrapPaymentWatchers().catch((error) => {
     console.error("[payment-watch-bootstrap] erro:", error?.message || error);
   });
+  startMelhorEnvioTokenMaintenance();
 
   return app;
 }

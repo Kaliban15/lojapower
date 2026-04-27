@@ -22,6 +22,7 @@ const state = {
   connected: false,
   readyForShipment: false,
   missingShipmentScopes: [],
+  reconnectRequired: false,
 };
 
 const elements = {
@@ -530,6 +531,9 @@ async function createShipmentDirectly() {
   try {
     // 2. Validações Iniciais
     if (!state.readyForShipment) {
+        if (state.reconnectRequired) {
+          throw new Error("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.");
+        }
         throw new Error("Sistema de frete indisponível no momento.");
     }
 
@@ -682,6 +686,10 @@ function preloadFromStorage() {
 
 async function calculateShipping() {
   if (!state.readyForShipment) {
+    if (state.reconnectRequired) {
+      setMessage("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.", "error");
+      return;
+    }
     if (!state.connected) {
       setMessage("Melhor Envio ainda nao esta conectado no painel do vendedor.", "error");
       return;
@@ -778,8 +786,14 @@ async function loadShippingStatus() {
   state.connected = Boolean(data.connected);
   state.readyForShipment = Boolean(data.readyForShipment);
   state.missingShipmentScopes = Array.isArray(data.missingShipmentScopes) ? data.missingShipmentScopes : [];
+  state.reconnectRequired = Boolean(data.reconnectRequired);
   elements.calculateShippingBtn.disabled = !state.readyForShipment;
   elements.continueToPaymentBtn.disabled = !state.readyForShipment;
+
+  if (state.reconnectRequired) {
+    setMessage("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.", "error");
+    return;
+  }
 
   if (!state.connected) {
     setMessage("Conecte a Melhor Envio no painel do vendedor antes de calcular frete.", "error");
