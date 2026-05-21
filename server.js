@@ -784,11 +784,20 @@ function getMissingScopes(currentScopes, requiredScopes = []) {
   return required.filter((scope) => !set.has(scope));
 }
 
+function isMelhorEnvioAccessTokenUsable(token = null) {
+  if (!token?.accessToken) return false;
+  if (String(token?.environment || MELHOR_ENVIO_ENVIRONMENT) !== MELHOR_ENVIO_ENVIRONMENT) return false;
+
+  const expiresAtMs = Date.parse(String(token?.expiresAt || ""));
+  if (!Number.isFinite(expiresAtMs)) return true;
+  return Date.now() < (expiresAtMs - 60 * 1000);
+}
+
 function getShippingIntegrationReadiness(token = null) {
-  const reconnectRequired = Boolean(token?.reconnectRequired);
+  const accessTokenUsable = isMelhorEnvioAccessTokenUsable(token);
+  const reconnectRequired = Boolean(token?.reconnectRequired) && !accessTokenUsable;
   const connected = Boolean(
-    token?.accessToken
-    && !reconnectRequired
+    accessTokenUsable
     && String(token?.environment || MELHOR_ENVIO_ENVIRONMENT) === MELHOR_ENVIO_ENVIRONMENT,
   );
   const tokenScopes = token?.scope ? normalizeScopes(token.scope) : "";
@@ -982,11 +991,14 @@ async function refreshMelhorEnvioTokenIfNeeded(token = null, options = {}) {
   const force = Boolean(options.force);
   if (!current?.accessToken && !current?.refreshToken) return null;
   if (String(current.environment || MELHOR_ENVIO_ENVIRONMENT) !== MELHOR_ENVIO_ENVIRONMENT) return null;
+
+  const expiresAtMs = Date.parse(String(current.expiresAt || ""));
+  const accessTokenUsable = isMelhorEnvioAccessTokenUsable(current);
   if (current.reconnectRequired && !force) {
+    if (accessTokenUsable) return current;
     throw buildMelhorEnvioReconnectError(String(current.lastRefreshError || "Reconecte o app Melhor Envio no painel do vendedor."));
   }
 
-  const expiresAtMs = Date.parse(String(current.expiresAt || ""));
   const shouldRefresh = force
     || !Number.isFinite(expiresAtMs)
     || (Date.now() >= (expiresAtMs - MELHOR_ENVIO_REFRESH_MARGIN_MS));
