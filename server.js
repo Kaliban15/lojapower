@@ -305,11 +305,18 @@ function normalizeShippingConfig(input = {}) {
   const sender = normalizeShippingSender(input.sender && typeof input.sender === "object" ? input.sender : {});
   const senderPostalCodeRaw = normalizePostalCode(sender.postalCode);
   const services = normalizeServiceList(input.services);
+  const superFreteToken = normalizeStoredSuperFreteToken(
+    input.superFreteToken
+    || input.super_frete_token
+    || input.token
+    || input.accessToken
+    || input.access_token,
+  );
   const resolvedOriginPostalCodeRaw = originPostalCodeRaw.length === 8
     ? originPostalCodeRaw
     : (senderPostalCodeRaw.length === 8 ? senderPostalCodeRaw : "");
 
-  return {
+  const normalized = {
     originPostalCode: resolvedOriginPostalCodeRaw.length === 8
       ? `${resolvedOriginPostalCodeRaw.slice(0, 5)}-${resolvedOriginPostalCodeRaw.slice(5)}`
       : DEFAULT_SHIPPING_CONFIG.originPostalCode,
@@ -317,17 +324,36 @@ function normalizeShippingConfig(input = {}) {
     options: normalizeShippingOptions(input.options || {}),
     sender,
   };
+
+  if (superFreteToken) normalized.superFreteToken = superFreteToken;
+  return normalized;
 }
 
 function getSuperFreteBaseEndpoint() {
   return SUPERFRETE_BASE_URL || SUPERFRETE_ENDPOINTS[SUPERFRETE_ENVIRONMENT];
 }
 
-function getSuperFreteIntegrationReadiness() {
+function normalizeStoredSuperFreteToken(value) {
+  return String(value || "").trim();
+}
+
+async function getSuperFreteToken() {
+  const envToken = normalizeStoredSuperFreteToken(SUPERFRETE_TOKEN);
+  if (envToken) return envToken;
+  try {
+    const config = await readShippingConfig();
+    return normalizeStoredSuperFreteToken(config.superFreteToken);
+  } catch {
+    return "";
+  }
+}
+
+async function getSuperFreteIntegrationReadiness() {
+  const token = await getSuperFreteToken();
   return {
     provider: "superfrete",
-    configured: Boolean(SUPERFRETE_TOKEN),
-    connected: Boolean(SUPERFRETE_TOKEN),
+    configured: Boolean(token),
+    connected: Boolean(token),
     environment: SUPERFRETE_ENVIRONMENT,
     tokenScopes: "",
     missingShipmentScopes: [],
@@ -336,6 +362,12 @@ function getSuperFreteIntegrationReadiness() {
     readyForShipment: true,
     fallbackEnabled: true,
   };
+}
+
+function sanitizeShippingConfigForClient(config = {}) {
+  const normalized = normalizeShippingConfig(config || DEFAULT_SHIPPING_CONFIG);
+  const { superFreteToken, ...safeConfig } = normalized;
+  return safeConfig;
 }
 
 function extractSuperFreteError(payload) {
@@ -362,7 +394,8 @@ function extractSuperFreteError(payload) {
 }
 
 async function superFreteApiRequest(pathname = "", options = {}) {
-  if (!SUPERFRETE_TOKEN) {
+  const token = await getSuperFreteToken();
+  if (!token) {
     const error = new Error("Token da Superfrete nao configurado.");
     error.statusCode = 401;
     error.code = "SUPERFRETE_TOKEN_MISSING";
@@ -383,7 +416,7 @@ async function superFreteApiRequest(pathname = "", options = {}) {
         method: options.method || "GET",
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${SUPERFRETE_TOKEN}`,
+          Authorization: `Bearer ${token}`,
           "User-Agent": SUPERFRETE_USER_AGENT,
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
           ...(options.headers || {}),
@@ -578,7 +611,23 @@ async function readShippingConfig() {
 async function writeShippingConfig(config) {
   try {
     const db = await connectDB();
+    const current = (await db.collection("settings").findOne({ _id: "shipping_default" })) || {};
     const data = normalizeShippingConfig(config);
+    const explicitToken = normalizeStoredSuperFreteToken(
+      config?.superFreteToken
+      || config?.super_frete_token
+      || config?.token
+      || config?.accessToken
+      || config?.access_token,
+    );
+    if (explicitToken) {
+      data.superFreteToken = explicitToken;
+    } else if (current.superFreteToken) {
+      data.superFreteToken = String(current.superFreteToken || "").trim();
+    }
+    if (config?.clearSuperFreteToken) {
+      data.superFreteToken = "";
+    }
     await db.collection("settings").updateOne(
       { _id: "shipping_default" },
       { $set: data },
@@ -2023,7 +2072,7 @@ function pickApprovedPaymentFromSearch(payments = []) {
   return payments.find((payment) => String(payment?.status || "").trim().toLowerCase() === "approved") || null;
 }
 
-async function processShippingFromExternalReference(externalReference, source = "manual-sync-reference") {
+async function processShippingFromExternalReference(externalReference, source = "manual-sync-reference", options = {}) {
   const reference = normalizeExternalReference(externalReference);
   if (!reference) {
     throw new Error("externalReference invalida para processar envio.");
@@ -2060,7 +2109,7 @@ async function processShippingFromExternalReference(externalReference, source = 
     };
   }
 
-  const result = await processShippingFromPaymentId(String(approvedPayment.id), source);
+  const result = await processShippingFromPaymentId(String(approvedPayment.id), source, options);
   return {
     ...result,
     paymentsFound: payments.length,
@@ -2935,6 +2984,85 @@ function toSuperFreteCartAddress(input = {}) {
   };
 }
 
+function pickCheapestSuperFreteQuote(quotes = []) {
+  return [...(Array.isArray(quotes) ? quotes : [])]
+    .filter((quote) => Number(quote?.price || 0) > 0 && !quote?.error)
+    .sort((a, b) => Number(a.price || 0) - Number(b.price || 0))[0] || null;
+}
+
+async function quoteSuperFreteForOrderContext(orderContext = {}, shippingConfig = DEFAULT_SHIPPING_CONFIG) {
+  const fromPostalCode = normalizePostalCode(shippingConfig.originPostalCode);
+  const toPostalCode = normalizePostalCode(orderContext?.customerAddress?.postalCode || orderContext?.customerAddress?.postal_code);
+  if (!isValidPostalCode(fromPostalCode) || !isValidPostalCode(toPostalCode)) return [];
+
+  const packageData = normalizeShippingPackage(orderContext?.package || {}, orderContext?.productAmount || 1);
+  const quantity = Math.max(1, Math.floor(Number(orderContext?.quantity || orderContext?.order?.quantity || 1) || 1));
+  const payload = {
+    from: { postal_code: fromPostalCode },
+    to: { postal_code: toPostalCode },
+    products: [
+      {
+        id: String(orderContext?.variationId || orderContext?.productId || `p-${Date.now()}`).slice(0, 64),
+        width: packageData.width,
+        height: packageData.height,
+        length: packageData.length,
+        weight: packageData.weight,
+        insurance_value: packageData.insuranceValue,
+        quantity,
+      },
+    ],
+    options: normalizeShippingOptions(shippingConfig.options),
+  };
+
+  if (Array.isArray(shippingConfig.services) && shippingConfig.services.length) {
+    payload.services = shippingConfig.services.join(",");
+  }
+
+  const { parsed } = await superFreteApiRequest("calculator", {
+    method: "POST",
+    body: payload,
+  });
+  return parseSuperFreteQuoteList(parsed).filter((quote) => quote.price > 0 && !quote.error);
+}
+
+async function resolveSuperFreteShippingForFallbackOrder(orderContext = {}) {
+  const serviceId = parseShippingServiceId(
+    orderContext?.shipping?.serviceId
+    || orderContext?.shipping?.service
+    || orderContext?.shipping?.rawServiceId,
+  );
+  if (!isFallbackShippingService(serviceId, orderContext?.shipping)) return orderContext;
+  if (!(await getSuperFreteToken())) return orderContext;
+
+  try {
+    const shippingConfig = await readShippingConfig();
+    const quote = pickCheapestSuperFreteQuote(await quoteSuperFreteForOrderContext(orderContext, shippingConfig));
+    if (!quote) return orderContext;
+    const resolvedServiceId = parseShippingServiceId(quote.id || quote.service_id || quote.service);
+    if (!resolvedServiceId) return orderContext;
+
+    return {
+      ...orderContext,
+      shippingAmount: Number(quote.price || orderContext?.shippingAmount || 0) || 0,
+      shipping: {
+        ...(orderContext.shipping && typeof orderContext.shipping === "object" ? orderContext.shipping : {}),
+        serviceId: resolvedServiceId,
+        rawServiceId: String(quote.id || resolvedServiceId),
+        agencyId: parsePositiveInteger(quote.agency_id || quote.raw?.agency_id || quote.raw?.agency?.id),
+        rawAgencyId: String(quote.agency_id || quote.raw?.agency_id || quote.raw?.agency?.id || "").trim(),
+        serviceName: firstNonEmptyString(quote.name, orderContext?.shipping?.serviceName),
+        companyName: firstNonEmptyString(quote.company?.name, orderContext?.shipping?.companyName),
+        provider: "superfrete",
+        fallback: false,
+        price: Number(quote.price || 0) || 0,
+      },
+    };
+  } catch (error) {
+    console.warn("[shipping-fallback-retry] nao foi possivel recalcular na Superfrete:", error?.message || error);
+    return orderContext;
+  }
+}
+
 async function createSuperFreteShipment(orderContext = {}) {
   const serviceId = parseShippingServiceId(
     orderContext?.shipping?.serviceId
@@ -3364,14 +3492,17 @@ async function buildDirectShipmentContext(payload = {}) {
   };
 }
 
-async function processShippingFromPaymentIdUnlocked(paymentId, source = "system") {
+async function processShippingFromPaymentIdUnlocked(paymentId, source = "system", options = {}) {
   const id = String(paymentId || "").trim();
   if (!id) {
     throw new Error("paymentId invalido para processar envio.");
   }
 
   const existing = await getShippingOrderRecordByPaymentId(id);
-  if (existing?.status === "created" || existing?.status === "created_without_label") {
+  const force = Boolean(options.force);
+  const existingIsFallback = String(existing?.provider || "").trim().toLowerCase() === "fallback"
+    || String(existing?.superFreteOrderId || existing?.melhorEnvioOrderId || "").startsWith("fallback-");
+  if ((existing?.status === "created" || existing?.status === "created_without_label") && !(force && existingIsFallback)) {
     return {
       ok: true,
       reused: true,
@@ -3621,6 +3752,8 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
     };
   }
 
+  orderContext = await resolveSuperFreteShippingForFallbackOrder(orderContext);
+
   let shipment;
   try {
     shipment = await createSuperFreteShipment(orderContext);
@@ -3797,7 +3930,7 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
   };
 }
 
-function processShippingFromPaymentId(paymentId, source = "system") {
+function processShippingFromPaymentId(paymentId, source = "system", options = {}) {
   const id = String(paymentId || "").trim();
   if (!id) {
     return Promise.reject(new Error("paymentId invalido para processar envio."));
@@ -3807,7 +3940,7 @@ function processShippingFromPaymentId(paymentId, source = "system") {
     return shippingProcessLocks.get(id);
   }
 
-  const task = processShippingFromPaymentIdUnlocked(id, source)
+  const task = processShippingFromPaymentIdUnlocked(id, source, options)
     .catch(async (error) => {
       const existing = await getShippingOrderRecordByPaymentId(id);
       const attempts = Math.max(1, Math.floor(Number(existing?.attempts || 0)));
@@ -3883,7 +4016,7 @@ function createApp() {
   app.get("/api/melhorenvio/status", async (req, res) => {
     try {
       const shippingConfig = await readShippingConfig();
-      const readiness = getSuperFreteIntegrationReadiness();
+      const readiness = await getSuperFreteIntegrationReadiness();
 
       return res.json({
         provider: "superfrete",
@@ -3899,7 +4032,7 @@ function createApp() {
         redirectUri: "",
         tokenExpiresAt: "",
         fallbackEnabled: readiness.fallbackEnabled,
-        shippingConfig,
+        shippingConfig: sanitizeShippingConfigForClient(shippingConfig),
       });
     } catch {
       return res.status(500).json({ message: "Erro ao consultar status da Superfrete." });
@@ -3997,7 +4130,7 @@ function createApp() {
   app.get("/api/shipping/config", async (_req, res) => {
     try {
       const config = await readShippingConfig();
-      const readiness = getSuperFreteIntegrationReadiness();
+      const readiness = await getSuperFreteIntegrationReadiness();
       return res.json({
         provider: "superfrete",
         configured: readiness.configured,
@@ -4009,7 +4142,7 @@ function createApp() {
         refreshErrorMessage: "",
         readyForShipment: readiness.readyForShipment,
         fallbackEnabled: readiness.fallbackEnabled,
-        config,
+        config: sanitizeShippingConfigForClient(config),
       });
     } catch {
       return res.status(500).json({ message: "Erro ao carregar configuracao de frete." });
@@ -4026,7 +4159,8 @@ function createApp() {
 
     try {
       await writeShippingConfig(nextConfig);
-      return res.json(nextConfig);
+      const saved = await readShippingConfig();
+      return res.json(sanitizeShippingConfigForClient(saved));
     } catch {
       return res.status(500).json({ message: "Erro ao salvar configuracao de frete." });
     }
@@ -4201,12 +4335,13 @@ function createApp() {
 
   app.post("/api/checkout/shipping/sync", async (req, res) => {
     const paymentId = String(req.body?.paymentId || req.body?.id || req.query?.paymentId || "").trim();
+    const force = ["1", "true", "yes", "sim"].includes(String(req.body?.force || req.query?.force || "").trim().toLowerCase());
     if (!paymentId) {
       return res.status(400).json({ message: "paymentId obrigatorio para sincronizar envio." });
     }
 
     try {
-      const result = await processShippingFromPaymentId(paymentId, "manual-sync");
+      const result = await processShippingFromPaymentId(paymentId, force ? "manual-sync-force" : "manual-sync", { force });
       return res.json(result);
     } catch (error) {
       return res.status(error?.statusCode || 500).json({
@@ -4219,12 +4354,17 @@ function createApp() {
     const externalReference = normalizeExternalReference(
       req.body?.externalReference || req.body?.reference || req.query?.externalReference || req.query?.reference,
     );
+    const force = ["1", "true", "yes", "sim"].includes(String(req.body?.force || req.query?.force || "").trim().toLowerCase());
     if (!externalReference) {
       return res.status(400).json({ message: "externalReference obrigatoria para sincronizar envio." });
     }
 
     try {
-      const result = await processShippingFromExternalReference(externalReference, "manual-sync-reference");
+      const result = await processShippingFromExternalReference(
+        externalReference,
+        force ? "manual-sync-reference-force" : "manual-sync-reference",
+        { force },
+      );
       return res.json(result);
     } catch (error) {
       return res.status(error?.statusCode || 500).json({
@@ -4570,7 +4710,7 @@ function createApp() {
           errors: orderValidationErrors,
         });
       }
-      if (!SUPERFRETE_TOKEN) {
+      if (!(await getSuperFreteToken())) {
         console.warn("[checkout] Superfrete sem token configurado; checkout seguira com envio fallback.");
       }
     }
