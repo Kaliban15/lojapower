@@ -2566,6 +2566,13 @@ function buildAdminSaleFromCheckoutIntent(intent = {}) {
       status: String(shipping.status || "").trim(),
       provider: String(shipping.provider || "").trim(),
       paymentStatus: String(shipping.paymentStatus || shipping.payment_status || "").trim().toLowerCase(),
+      superFreteOrderId: firstNonEmptyString(
+        shipping.superFreteOrderId,
+        shipping.super_frete_order_id,
+        shipping.melhorEnvioOrderId,
+        shipping.melhor_envio_order_id,
+        shipping.orderId,
+      ),
       melhorEnvioOrderId: firstNonEmptyString(
         shipping.superFreteOrderId,
         shipping.super_frete_order_id,
@@ -3907,6 +3914,9 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
         purchaseId: shipment.purchaseId,
         protocol: shipment.protocol,
         tracking: shipment.tracking,
+        serviceId: shipment.serviceId,
+        serviceName: shipment.serviceName,
+        companyName: shipment.companyName,
         labelGenerated: shipment.labelGenerated,
         labelUrl: shipment.labelUrl,
         warnings: shipment.warnings || [],

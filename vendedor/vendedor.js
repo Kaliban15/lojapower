@@ -1136,6 +1136,19 @@ function saleFieldHtml(label, value) {
   `;
 }
 
+function saleLinkFieldHtml(label, href, text = "Abrir") {
+  const url = String(href || "").trim();
+  if (!url) return "";
+  return `
+    <div class="sale-field">
+      <span class="sale-field-label">${escapeHtml(label)}</span>
+      <p class="sale-field-value">
+        <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>
+      </p>
+    </div>
+  `;
+}
+
 function saleCardHtml(sale = {}) {
   const customer = sale.customer && typeof sale.customer === "object" ? sale.customer : {};
   const customerAddress = sale.customerAddress && typeof sale.customerAddress === "object" ? sale.customerAddress : {};
@@ -1175,6 +1188,7 @@ function saleCardHtml(sale = {}) {
         ${saleFieldHtml("Endereco", address)}
         ${saleFieldHtml("Transportadora", shipping.companyName)}
         ${saleFieldHtml("Rastreio", shipping.tracking || shipping.protocol || shipping.superFreteOrderId || shipping.melhorEnvioOrderId)}
+        ${saleLinkFieldHtml("Etiqueta", shipping.labelUrl, "Imprimir etiqueta")}
       </div>
     </article>
   `;
