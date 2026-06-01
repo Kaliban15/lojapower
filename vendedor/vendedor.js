@@ -1076,9 +1076,11 @@ function renderShippingPanel() {
   const connected = Boolean(status.connected);
   const missingScopes = Array.isArray(status.missingShipmentScopes) ? status.missingShipmentScopes : [];
 
-  meStatusText.textContent = connected ? "Conectado" : "Nao conectado";
-  meEnvironment.textContent = String(status.environment || "sandbox");
-  meCallbackPath.textContent = String(status.redirectUri || "/callback/melhorenvio");
+  meStatusText.textContent = connected ? "Superfrete ativa" : "Superfrete em fallback";
+  meEnvironment.textContent = String(status.environment || "production");
+  meCallbackPath.textContent = String(status.provider || "superfrete") === "superfrete"
+    ? "Token fixo Superfrete"
+    : String(status.redirectUri || "");
 
   const cfg = config.config || config || {};
   const sender = cfg.sender && typeof cfg.sender === "object" ? cfg.sender : {};
@@ -1103,7 +1105,7 @@ function renderShippingPanel() {
   if (connected && missingScopes.length) {
     showMessage(
       shippingMessage,
-      `Reconecte o app da Melhor Envio para liberar os escopos: ${missingScopes.join(", ")}.`,
+      `Revise a configuracao da Superfrete: ${missingScopes.join(", ")}.`,
       "error",
     );
   }
@@ -1172,7 +1174,7 @@ function saleCardHtml(sale = {}) {
         ${saleFieldHtml("Data da compra", orderMoment)}
         ${saleFieldHtml("Endereco", address)}
         ${saleFieldHtml("Transportadora", shipping.companyName)}
-        ${saleFieldHtml("Rastreio", shipping.tracking || shipping.protocol || shipping.melhorEnvioOrderId)}
+        ${saleFieldHtml("Rastreio", shipping.tracking || shipping.protocol || shipping.superFreteOrderId || shipping.melhorEnvioOrderId)}
       </div>
     </article>
   `;
@@ -1566,30 +1568,12 @@ shippingConfigForm.addEventListener("submit", async (event) => {
 
 connectMelhorEnvioBtn.addEventListener("click", async () => {
   showMessage(shippingMessage, "", "");
-  try {
-    const response = await fetch("/api/melhorenvio/connect-url");
-    const data = await readJsonResponse(response);
-    const authUrl = String(data.authUrl || "").trim();
-    if (!authUrl) {
-      showMessage(shippingMessage, "Nao foi possivel iniciar a conexao com a Melhor Envio.", "error");
-      return;
-    }
-    window.location.href = authUrl;
-  } catch (error) {
-    showMessage(shippingMessage, error.message || "Falha ao iniciar a conexao com a Melhor Envio.", "error");
-  }
+  showMessage(shippingMessage, "Superfrete usa token fixo e ja esta configurada.", "success");
 });
 
 disconnectMelhorEnvioBtn.addEventListener("click", async () => {
   showMessage(shippingMessage, "", "");
-  try {
-    const response = await fetch("/api/melhorenvio/disconnect", { method: "POST" });
-    await readJsonResponse(response);
-    showMessage(shippingMessage, "Conexao com Melhor Envio removida.", "success");
-    await reloadAll();
-  } catch (error) {
-    showMessage(shippingMessage, error.message || "Falha ao desconectar.", "error");
-  }
+  showMessage(shippingMessage, "Superfrete nao usa OAuth, entao nao ha conexao para remover.", "success");
 });
 
 productForm.addEventListener("change", (event) => {
@@ -1735,11 +1719,11 @@ reloadAll()
     const params = new URLSearchParams(window.location.search);
     const meStatus = String(params.get("melhorenvio") || "").trim();
     if (meStatus === "connected") {
-      showMessage(shippingMessage, "App Melhor Envio conectado com sucesso.", "success");
+      showMessage(shippingMessage, "Superfrete configurada com sucesso.", "success");
       window.history.replaceState({}, "", window.location.pathname);
     }
     if (meStatus === "error") {
-      showMessage(shippingMessage, "Falha na autorizacao da Melhor Envio. Tente novamente.", "error");
+      showMessage(shippingMessage, "Falha na configuracao da Superfrete. Verifique o token.", "error");
       window.history.replaceState({}, "", window.location.pathname);
     }
   })

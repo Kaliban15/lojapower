@@ -23,6 +23,7 @@ const state = {
   readyForShipment: false,
   missingShipmentScopes: [],
   reconnectRequired: false,
+  fallbackEnabled: false,
 };
 
 const elements = {
@@ -46,7 +47,7 @@ function normalizeText(value) {
 
 function formatMissingScopes(scopes) {
   const list = Array.isArray(scopes) ? scopes.filter(Boolean) : [];
-  return list.length ? list.join(", ") : "cart-write, shipping-generate";
+  return list.length ? list.join(", ") : "token Superfrete";
 }
 
 function normalizePostalCode(value) {
@@ -531,8 +532,8 @@ async function createShipmentDirectly() {
   try {
     // 2. Validações Iniciais
     if (!state.readyForShipment) {
-        if (state.reconnectRequired) {
-          throw new Error("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.");
+        if (state.reconnectRequired || state.fallbackEnabled) {
+          throw new Error("Nao foi possivel validar a Superfrete. Tentaremos finalizar com envio padrao.");
         }
         throw new Error("Sistema de frete indisponível no momento.");
     }
@@ -686,19 +687,18 @@ function preloadFromStorage() {
 
 async function calculateShipping() {
   if (!state.readyForShipment) {
-    if (state.reconnectRequired) {
-      setMessage("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.", "error");
+    if (state.reconnectRequired || state.fallbackEnabled) {
+      setMessage("Superfrete indisponivel. O checkout usara envio padrao se necessario.", "error");
+    } else if (!state.connected) {
+      setMessage("Superfrete ainda nao esta configurada no painel do vendedor.", "error");
+      return;
+    } else {
+      setMessage(
+        `Revise a configuracao da Superfrete no painel do vendedor: ${formatMissingScopes(state.missingShipmentScopes)}.`,
+        "error",
+      );
       return;
     }
-    if (!state.connected) {
-      setMessage("Melhor Envio ainda nao esta conectado no painel do vendedor.", "error");
-      return;
-    }
-    setMessage(
-      `Reconecte a Melhor Envio no painel do vendedor para liberar os escopos: ${formatMissingScopes(state.missingShipmentScopes)}.`,
-      "error",
-    );
-    return;
   }
 
   const formPayload = collectFormData();
@@ -787,22 +787,23 @@ async function loadShippingStatus() {
   state.readyForShipment = Boolean(data.readyForShipment);
   state.missingShipmentScopes = Array.isArray(data.missingShipmentScopes) ? data.missingShipmentScopes : [];
   state.reconnectRequired = Boolean(data.reconnectRequired);
+  state.fallbackEnabled = Boolean(data.fallbackEnabled);
   elements.calculateShippingBtn.disabled = !state.readyForShipment;
   elements.continueToPaymentBtn.disabled = !state.readyForShipment;
 
-  if (state.reconnectRequired) {
-    setMessage("Nao foi possivel renovar o token da Melhor Envio. Reconecte o app.", "error");
+  if (state.reconnectRequired && !state.fallbackEnabled) {
+    setMessage("Superfrete indisponivel. O checkout usara envio padrao se necessario.", "error");
     return;
   }
 
-  if (!state.connected) {
-    setMessage("Conecte a Melhor Envio no painel do vendedor antes de calcular frete.", "error");
+  if (!state.connected && !state.fallbackEnabled) {
+    setMessage("Configure a Superfrete no painel do vendedor antes de calcular frete.", "error");
     return;
   }
 
   if (!state.readyForShipment && state.missingShipmentScopes.length) {
     setMessage(
-      `Reconecte a Melhor Envio no painel do vendedor para liberar os escopos: ${formatMissingScopes(state.missingShipmentScopes)}.`,
+      `Revise a configuracao da Superfrete no painel do vendedor: ${formatMissingScopes(state.missingShipmentScopes)}.`,
       "error",
     );
   }

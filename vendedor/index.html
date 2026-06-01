@@ -87,7 +87,7 @@
         </div>
 
         <div class="shipping-box">
-          <strong>Dados do pacote para frete (Melhor Envio)</strong>
+          <strong>Dados do pacote para frete (Superfrete)</strong>
           <div class="shipping-grid">
             <label>
               Largura (cm)
@@ -151,19 +151,19 @@
 
     <section class="admin-card collapsible collapsed" data-collapsible>
       <button type="button" class="collapse-toggle" data-collapse-toggle>
-        <h2>Frete (Melhor Envio Sandbox)</h2>
+        <h2>Frete (Superfrete)</h2>
         <span class="collapse-icon">+</span>
       </button>
       <div class="collapse-body">
         <form id="shippingConfigForm" class="form-grid" novalidate>
           <div class="shipping-status" id="meStatusBox">
             <p><strong>Status:</strong> <span id="meStatusText">Carregando...</span></p>
-            <p><strong>Ambiente:</strong> <span id="meEnvironment">sandbox</span></p>
-            <p><strong>Callback:</strong> <code id="meCallbackPath">/callback/melhorenvio</code></p>
+            <p><strong>Ambiente:</strong> <span id="meEnvironment">production</span></p>
+            <p><strong>Autenticacao:</strong> <code id="meCallbackPath">Token fixo Superfrete</code></p>
           </div>
 
-          <div class="shipping-actions">
-            <button type="button" class="btn btn-primary" id="connectMelhorEnvioBtn">Conectar app Melhor Envio</button>
+          <div class="shipping-actions" hidden>
+            <button type="button" class="btn btn-primary" id="connectMelhorEnvioBtn">Token Superfrete ativo</button>
             <button type="button" class="btn btn-light" id="disconnectMelhorEnvioBtn">Desconectar</button>
           </div>
 
@@ -179,7 +179,7 @@
 
           <div class="shipping-box">
             <strong>Remetente para criacao de envio</strong>
-            <p class="mini-note">Preencha estes dados se sua conta sandbox da Melhor Envio estiver incompleta.</p>
+            <p class="mini-note">Preencha estes dados para criacao das etiquetas na Superfrete.</p>
             <div class="sender-grid">
               <label>
                 Nome do remetente

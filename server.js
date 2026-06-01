@@ -68,6 +68,27 @@ const MELHOR_ENVIO_MAINTENANCE_INTERVAL_MS = Math.max(
   60 * 60 * 1000,
   Math.floor(Number(process.env.ME_TOKEN_MAINTENANCE_INTERVAL_MS || 12 * 60 * 60 * 1000) || 12 * 60 * 60 * 1000),
 );
+const SUPERFRETE_TOKEN = String(
+  process.env.SUPERFRETE_TOKEN
+  || process.env.SUPER_FRETE_TOKEN
+  || process.env.SF_TOKEN
+  || ""
+).trim();
+const SUPERFRETE_ENVIRONMENT = String(
+  process.env.SUPERFRETE_ENVIRONMENT
+  || process.env.SUPER_FRETE_ENVIRONMENT
+  || process.env.SF_ENV
+  || "production"
+).trim().toLowerCase() === "sandbox" ? "sandbox" : "production";
+const SUPERFRETE_ENDPOINTS = {
+  production: "https://api.superfrete.com",
+  sandbox: "https://sandbox.superfrete.com",
+};
+const SUPERFRETE_BASE_URL = String(process.env.SUPERFRETE_BASE_URL || process.env.SF_BASE_URL || "").trim().replace(/\/+$/, "");
+const SUPERFRETE_USER_AGENT = String(process.env.SUPERFRETE_USER_AGENT || "PowerTech Loja/1.0 (contato@lojapowertech.com.br)").trim();
+const SUPERFRETE_ALLOWED_SERVICE_IDS = new Set([1, 2, 3, 17, 31]);
+const SUPERFRETE_FALLBACK_SERVICE_ID = 999;
+const SUPERFRETE_FALLBACK_DELIVERY_DAYS = Math.max(1, Math.floor(Number(process.env.SUPERFRETE_FALLBACK_DELIVERY_DAYS || 7) || 7));
 const MELHOR_ENVIO_REQUIRED_SHIPMENT_SCOPES = [
   "shipping-calculate",
   "orders-read",
@@ -123,7 +144,7 @@ const DEFAULT_PRODUCT_SHIPPING = {
 
 const DEFAULT_SHIPPING_CONFIG = {
   originPostalCode: "01010-000",
-  services: [1, 2, 17],
+  services: [1, 2, 17, 3, 31],
   options: {
     receipt: false,
     ownHand: false,
@@ -243,7 +264,7 @@ function normalizeServiceList(input) {
 
   const parsed = source
     .map((item) => Number(String(item).replace(/\D/g, "")))
-    .filter((item) => Number.isFinite(item) && item > 0)
+    .filter((item) => Number.isFinite(item) && item > 0 && SUPERFRETE_ALLOWED_SERVICE_IDS.has(item))
     .map((item) => Math.floor(item));
 
   const unique = Array.from(new Set(parsed));
@@ -296,6 +317,239 @@ function normalizeShippingConfig(input = {}) {
     options: normalizeShippingOptions(input.options || {}),
     sender,
   };
+}
+
+function getSuperFreteBaseEndpoint() {
+  return SUPERFRETE_BASE_URL || SUPERFRETE_ENDPOINTS[SUPERFRETE_ENVIRONMENT];
+}
+
+function getSuperFreteIntegrationReadiness() {
+  return {
+    provider: "superfrete",
+    configured: Boolean(SUPERFRETE_TOKEN),
+    connected: Boolean(SUPERFRETE_TOKEN),
+    environment: SUPERFRETE_ENVIRONMENT,
+    tokenScopes: "",
+    missingShipmentScopes: [],
+    reconnectRequired: false,
+    refreshErrorMessage: "",
+    readyForShipment: true,
+    fallbackEnabled: true,
+  };
+}
+
+function extractSuperFreteError(payload) {
+  if (!payload) return "Falha na integracao com a Superfrete.";
+  if (typeof payload === "string" && payload.trim()) return payload.trim();
+  if (typeof payload?.message === "string" && payload.message.trim()) return payload.message.trim();
+  if (typeof payload?.error === "string" && payload.error.trim()) return payload.error.trim();
+  if (Array.isArray(payload?.errors) && payload.errors.length) {
+    const first = payload.errors[0];
+    if (typeof first === "string" && first.trim()) return first.trim();
+    if (typeof first?.message === "string" && first.message.trim()) return first.message.trim();
+  }
+  if (payload?.errors && typeof payload.errors === "object") {
+    const parts = Object.entries(payload.errors)
+      .flatMap(([field, value]) => {
+        if (Array.isArray(value)) return value.map((entry) => `${field}: ${entry}`);
+        if (typeof value === "string") return [`${field}: ${value}`];
+        return [];
+      })
+      .filter(Boolean);
+    if (parts.length) return parts.slice(0, 3).join("; ");
+  }
+  return "Falha na integracao com a Superfrete.";
+}
+
+async function superFreteApiRequest(pathname = "", options = {}) {
+  if (!SUPERFRETE_TOKEN) {
+    const error = new Error("Token da Superfrete nao configurado.");
+    error.statusCode = 401;
+    error.code = "SUPERFRETE_TOKEN_MISSING";
+    throw error;
+  }
+
+  const cleanedPath = String(pathname || "").replace(/^\/+/, "");
+  const url = `${getSuperFreteBaseEndpoint()}/${cleanedPath.startsWith("api/") ? cleanedPath : `api/v0/${cleanedPath}`}`;
+  const attempts = Math.max(1, Math.floor(Number(options.attempts || 3) || 3));
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const body = options.body === undefined
+      ? undefined
+      : (typeof options.body === "string" ? options.body : JSON.stringify(options.body));
+    let response;
+    try {
+      response = await fetch(url, {
+        method: options.method || "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${SUPERFRETE_TOKEN}`,
+          "User-Agent": SUPERFRETE_USER_AGENT,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          ...(options.headers || {}),
+        },
+        body,
+      });
+    } catch (error) {
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 750 * attempt));
+        continue;
+      }
+      const wrapped = new Error(`Falha de rede Superfrete: ${error?.message || "sem resposta"}`);
+      wrapped.code = "SUPERFRETE_NETWORK_FAILED";
+      wrapped.superFreteUrl = url;
+      throw wrapped;
+    }
+
+    const raw = await response.text();
+    let parsed = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = raw;
+    }
+
+    if (response.ok) return { response, parsed, url };
+    if ((response.status === 429 || response.status >= 500) && attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, 750 * attempt));
+      continue;
+    }
+
+    const error = new Error(`Falha Superfrete ${response.status}: ${extractSuperFreteError(parsed)}`);
+    error.statusCode = response.status;
+    error.code = response.status === 401 || response.status === 403 ? "SUPERFRETE_AUTH_FAILED" : "SUPERFRETE_REQUEST_FAILED";
+    error.superFretePayload = safeJsonDebugValue(parsed, null);
+    error.superFreteUrl = url;
+    throw error;
+  }
+
+  const error = new Error("Falha Superfrete sem resposta final.");
+  error.code = "SUPERFRETE_REQUEST_FAILED";
+  throw error;
+}
+
+function parseSuperFreteQuoteList(payload) {
+  const source = Array.isArray(payload)
+    ? payload
+    : (Array.isArray(payload?.services) ? payload.services : (Array.isArray(payload?.data) ? payload.data : []));
+  const serviceNames = {
+    1: "PAC",
+    2: "SEDEX",
+    3: "Jadlog",
+    17: "Mini Envios",
+    31: "Loggi",
+  };
+  const companyNames = {
+    1: "Correios",
+    2: "Correios",
+    3: "Jadlog",
+    17: "Correios",
+    31: "Loggi",
+  };
+
+  return source.map((item, index) => {
+    const serviceId = parseShippingServiceId(item?.id || item?.service_id || item?.service);
+    const rawPrice = item?.custom_price ?? item?.price ?? item?.packages?.[0]?.price ?? 0;
+    const price = Number(rawPrice);
+    const deliveryMin = Number(item?.delivery_range?.min || item?.delivery_min || item?.delivery_time || item?.delivery || 0);
+    const deliveryMax = Number(item?.delivery_range?.max || item?.delivery_max || item?.delivery_time || item?.delivery || deliveryMin || 0);
+    const companyName = firstNonEmptyString(
+      item?.company?.name,
+      item?.company?.slug,
+      typeof item?.company === "string" ? item.company : "",
+      companyNames[serviceId],
+      "Transportadora",
+    );
+
+    return {
+      id: String(item?.id ?? item?.service_id ?? `service-${index + 1}`),
+      name: firstNonEmptyString(item?.name, item?.service_name, serviceNames[serviceId], "Servico"),
+      company: {
+        id: String(item?.company?.id || ""),
+        name: companyName,
+        picture: String(item?.company?.picture || ""),
+      },
+      price: Number.isFinite(price) ? Number(price.toFixed(2)) : 0,
+      discount: Number(Number(item?.discount || 0).toFixed(2)),
+      custom_price: Number(Number(item?.custom_price || 0).toFixed(2)),
+      deliveryTime: Number.isFinite(deliveryMax) && deliveryMax > 0 ? deliveryMax : deliveryMin,
+      delivery_range: {
+        min: Number.isFinite(deliveryMin) ? deliveryMin : 0,
+        max: Number.isFinite(deliveryMax) ? deliveryMax : 0,
+      },
+      currency: String(item?.currency || "BRL"),
+      error: String(item?.error || ""),
+      error_message: String(item?.error_message || item?.error || ""),
+      service_id: serviceId,
+      agency_id: parsePositiveInteger(item?.agency?.id || item?.agency),
+      provider: "superfrete",
+      raw: item,
+    };
+  });
+}
+
+function buildFallbackShippingQuote(reason = "") {
+  return {
+    id: String(SUPERFRETE_FALLBACK_SERVICE_ID),
+    name: "Envio padrao",
+    company: {
+      id: "powertech",
+      name: "Power Tech",
+      picture: "",
+    },
+    price: 0,
+    discount: 0,
+    custom_price: 0,
+    deliveryTime: SUPERFRETE_FALLBACK_DELIVERY_DAYS,
+    delivery_range: {
+      min: Math.max(1, SUPERFRETE_FALLBACK_DELIVERY_DAYS - 2),
+      max: SUPERFRETE_FALLBACK_DELIVERY_DAYS,
+    },
+    currency: "BRL",
+    error: "",
+    error_message: "",
+    service_id: SUPERFRETE_FALLBACK_SERVICE_ID,
+    agency_id: null,
+    provider: "fallback",
+    fallback: true,
+    fallbackReason: String(reason || "Cotacao automatica indisponivel.").slice(0, 240),
+  };
+}
+
+function isFallbackShippingService(serviceId, shipping = {}) {
+  return Number(serviceId) === SUPERFRETE_FALLBACK_SERVICE_ID
+    || Boolean(shipping?.fallback)
+    || String(shipping?.provider || "").trim().toLowerCase() === "fallback";
+}
+
+function buildFallbackShipmentFromContext(orderContext = {}, reason = "") {
+  const fallbackOrderId = `fallback-${normalizeExternalReference(orderContext?.externalReference || `${Date.now()}`)}`;
+  return {
+    provider: "fallback",
+    status: "created_without_label",
+    superFreteOrderId: fallbackOrderId,
+    melhorEnvioOrderId: fallbackOrderId,
+    purchaseId: "",
+    purchaseStatus: "manual",
+    protocol: "",
+    tracking: "",
+    labelGenerated: false,
+    labelUrl: "",
+    serviceId: SUPERFRETE_FALLBACK_SERVICE_ID,
+    agencyId: null,
+    serviceName: firstNonEmptyString(orderContext?.shipping?.serviceName, "Envio padrao"),
+    companyName: firstNonEmptyString(orderContext?.shipping?.companyName, "Power Tech"),
+    warnings: [firstNonEmptyString(reason, "Envio registrado em fallback. Gerar etiqueta manualmente se necessario.")],
+  };
+}
+
+function shouldUseSuperFreteShipmentFallback(error = {}) {
+  const code = String(error?.code || "").trim();
+  const statusCode = Number(error?.statusCode || 0) || 0;
+  return code === "SUPERFRETE_AUTH_FAILED"
+    || code === "SUPERFRETE_TOKEN_MISSING"
+    || code === "SUPERFRETE_NETWORK_FAILED"
+    || (code === "SUPERFRETE_REQUEST_FAILED" && (!statusCode || statusCode === 429 || statusCode >= 500));
 }
 
 
@@ -423,11 +677,14 @@ function normalizeCheckoutIntentShipping(shippingPayload = {}) {
   const paymentStatus = String(raw.paymentStatus || raw.payment_status || "").trim().toLowerCase();
   const paymentStatusDetail = String(raw.paymentStatusDetail || raw.payment_status_detail || "").trim();
   const melhorEnvioOrderId = firstNonEmptyString(
+    raw.superFreteOrderId,
+    raw.super_frete_order_id,
     raw.melhorEnvioOrderId,
     raw.melhor_envio_order_id,
     raw.orderId,
     raw.order_id,
   );
+  const provider = firstNonEmptyString(raw.provider);
   const purchaseId = firstNonEmptyString(raw.purchaseId, raw.purchase_id);
   const purchaseStatus = firstNonEmptyString(raw.purchaseStatus, raw.purchase_status);
   const protocol = firstNonEmptyString(raw.protocol);
@@ -445,7 +702,9 @@ function normalizeCheckoutIntentShipping(shippingPayload = {}) {
   if (status) shipping.status = status;
   if (paymentStatus) shipping.paymentStatus = paymentStatus;
   if (paymentStatusDetail) shipping.paymentStatusDetail = paymentStatusDetail;
+  if (provider) shipping.provider = provider;
   if (melhorEnvioOrderId) shipping.melhorEnvioOrderId = melhorEnvioOrderId;
+  if (melhorEnvioOrderId) shipping.superFreteOrderId = melhorEnvioOrderId;
   if (purchaseId) shipping.purchaseId = purchaseId;
   if (purchaseStatus) shipping.purchaseStatus = purchaseStatus;
   if (protocol) shipping.protocol = protocol;
@@ -684,12 +943,14 @@ async function upsertShippingOrderRecord(paymentId, patch = {}) {
       externalReference: String(patch.externalReference || current.externalReference || "").trim(),
       linkedPaymentId: String(patch.linkedPaymentId || current.linkedPaymentId || "").trim(),
       source: String(patch.source || current.source || "").trim(),
+      provider: String(patch.provider || current.provider || "").trim(),
       customerCpf: normalizeCpf(patch.customerCpf || patch.cpf || current.customerCpf || ""),
       customerName: String(patch.customerName || current.customerName || "").trim(),
       status: String(patch.status || current.status || "pending").trim(),
       paymentStatus: String(patch.paymentStatus || current.paymentStatus || "").trim(),
       paymentStatusDetail: String(patch.paymentStatusDetail || current.paymentStatusDetail || "").trim(),
       melhorEnvioOrderId: String(patch.melhorEnvioOrderId || current.melhorEnvioOrderId || "").trim(),
+      superFreteOrderId: String(patch.superFreteOrderId || current.superFreteOrderId || patch.melhorEnvioOrderId || current.melhorEnvioOrderId || "").trim(),
       purchaseId: String(patch.purchaseId || current.purchaseId || "").trim(),
       protocol: String(patch.protocol || current.protocol || "").trim(),
       tracking: String(patch.tracking || current.tracking || "").trim(),
@@ -1036,8 +1297,8 @@ async function getMelhorEnvioAccessToken(options = {}) {
       await writeMelhorEnvioToken(markMelhorEnvioReconnectRequired(token, refreshError));
     }
     const error = new Error(refreshError?.reconnectRequired
-      ? "Nao foi possivel renovar o token da Melhor Envio. Reconecte o app."
-      : "Nao foi possivel renovar o token da Melhor Envio. Tente novamente em instantes.");
+      ? "Integracao antiga de frete indisponivel. O checkout usa Superfrete/fallback."
+      : "Integracao antiga de frete indisponivel no momento. O checkout usa Superfrete/fallback.");
     error.statusCode = 401;
     error.code = refreshError?.code || "MELHOR_ENVIO_REFRESH_FAILED";
     error.reconnectRequired = Boolean(refreshError?.reconnectRequired);
@@ -2254,8 +2515,11 @@ function buildAdminSaleFromCheckoutIntent(intent = {}) {
     },
     shipping: {
       status: String(shipping.status || "").trim(),
+      provider: String(shipping.provider || "").trim(),
       paymentStatus: String(shipping.paymentStatus || shipping.payment_status || "").trim().toLowerCase(),
       melhorEnvioOrderId: firstNonEmptyString(
+        shipping.superFreteOrderId,
+        shipping.super_frete_order_id,
         shipping.melhorEnvioOrderId,
         shipping.melhor_envio_order_id,
         shipping.orderId,
@@ -2558,6 +2822,268 @@ function buildRecipientFromOrderContext(context = {}, isCorreios = false) {
   }
 
   return recipient;
+}
+
+function pickSuperFreteAddressField(address = {}, keys = []) {
+  for (const key of keys) {
+    const value = address?.[key];
+    if (value && typeof value === "object") {
+      const nested = firstNonEmptyString(value.name, value.value, value.description, value.code);
+      if (nested) return nested;
+    }
+    const text = firstNonEmptyString(value);
+    if (text) return text;
+  }
+  return "";
+}
+
+async function listSuperFreteAccountAddresses() {
+  try {
+    const { parsed } = await superFreteApiRequest("user/addresses", { method: "GET", attempts: 2 });
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed?.data)) return parsed.data;
+    if (Array.isArray(parsed?.addresses)) return parsed.addresses;
+    if (Array.isArray(parsed?.result)) return parsed.result;
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+async function resolveSuperFreteSenderData(shippingConfig = DEFAULT_SHIPPING_CONFIG, isCorreios = false) {
+  const senderConfig = normalizeShippingSender(
+    shippingConfig?.sender && typeof shippingConfig.sender === "object"
+      ? shippingConfig.sender
+      : {},
+  );
+
+  let accountAddress = {};
+  if (
+    !senderConfig.address
+    || !senderConfig.city
+    || !senderConfig.state
+    || normalizePostalCode(senderConfig.postalCode).length !== 8
+  ) {
+    const addresses = await listSuperFreteAccountAddresses();
+    accountAddress = addresses[0] || {};
+  }
+
+  const normalizedPostalCode = normalizePostalCode(firstNonEmptyString(
+    senderConfig.postalCode,
+    shippingConfig?.originPostalCode,
+    pickSuperFreteAddressField(accountAddress, ["postal_code", "zipcode", "zip_code", "cep"]),
+  ));
+
+  const sender = {
+    name: firstNonEmptyString(senderConfig.name, pickSuperFreteAddressField(accountAddress, ["name", "sender_name"])),
+    phone: normalizePhone(firstNonEmptyString(senderConfig.phone, pickSuperFreteAddressField(accountAddress, ["phone", "phone_number"]))),
+    email: firstNonEmptyString(senderConfig.email, pickSuperFreteAddressField(accountAddress, ["email"])),
+    document: normalizeSuperFreteDocument(
+      senderConfig.document,
+      senderConfig.companyDocument,
+      pickSuperFreteAddressField(accountAddress, ["document", "cpf", "cnpj"]),
+    ),
+    state_register: null,
+    address: firstNonEmptyString(senderConfig.address, pickSuperFreteAddressField(accountAddress, ["address", "street", "street_name"])),
+    complement: String(firstNonEmptyString(senderConfig.complement, pickSuperFreteAddressField(accountAddress, ["complement"]))).slice(0, 64),
+    number: firstNonEmptyString(senderConfig.number, pickSuperFreteAddressField(accountAddress, ["number", "location_number", "street_number"]), "S/N"),
+    district: firstNonEmptyString(senderConfig.district, pickSuperFreteAddressField(accountAddress, ["district", "neighborhood"]), "N/I"),
+    city: firstNonEmptyString(senderConfig.city, pickSuperFreteAddressField(accountAddress, ["city", "city_name"])),
+    state_abbr: normalizeStateAbbr(firstNonEmptyString(senderConfig.state, pickSuperFreteAddressField(accountAddress, ["state_abbr", "state"]))),
+    country_id: "BR",
+    postal_code: normalizedPostalCode,
+  };
+
+  const missing = validateShipmentParty(sender, isCorreios, "remetente");
+  if (missing.length) {
+    const error = new Error(`Dados incompletos do remetente para Superfrete: ${missing.join(", ")}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return sender;
+}
+
+function normalizeSuperFreteDocument(...values) {
+  for (const value of values) {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (digits.length === 11 || digits.length === 14) return digits;
+  }
+  return "";
+}
+
+function toSuperFreteCartAddress(input = {}) {
+  const stateAbbr = normalizeStateAbbr(input.state_abbr || input.state);
+  const district = firstNonEmptyString(input.district, input.neighborhood, "N/I");
+  const number = firstNonEmptyString(input.number, input.location_number, "S/N");
+  return {
+    name: firstNonEmptyString(input.name),
+    phone: normalizePhone(input.phone),
+    email: firstNonEmptyString(input.email),
+    document: normalizeSuperFreteDocument(input.document, input.company_document, input.companyDocument),
+    address: firstNonEmptyString(input.address),
+    complement: String(firstNonEmptyString(input.complement)).slice(0, 64),
+    number,
+    location_number: number,
+    district,
+    neighborhood: district,
+    city: firstNonEmptyString(input.city),
+    state_abbr: stateAbbr,
+    state: stateAbbr,
+    country_id: "BR",
+    postal_code: normalizePostalCode(input.postal_code || input.postalCode),
+  };
+}
+
+async function createSuperFreteShipment(orderContext = {}) {
+  const serviceId = parseShippingServiceId(
+    orderContext?.shipping?.serviceId
+    || orderContext?.shipping?.service
+    || orderContext?.shipping?.rawServiceId,
+  );
+  if (!serviceId) {
+    const error = new Error("Servico de frete invalido para criar o envio na Superfrete.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (isFallbackShippingService(serviceId, orderContext?.shipping)) {
+    return buildFallbackShipmentFromContext(orderContext);
+  }
+
+  const isCorreios = isCorreiosService(serviceId, orderContext?.shipping?.companyName);
+  const shippingConfig = await readShippingConfig();
+  const recipientPromise = Promise.resolve().then(() => buildRecipientFromOrderContext(orderContext, isCorreios));
+  const [sender, recipient] = await Promise.all([
+    resolveSuperFreteSenderData(shippingConfig, isCorreios),
+    recipientPromise,
+  ]);
+  const from = toSuperFreteCartAddress(sender);
+  const to = toSuperFreteCartAddress(recipient);
+
+  const packageData = normalizeShippingPackage(orderContext?.package || {}, orderContext?.productAmount || 1);
+  const quantity = Math.max(1, Math.floor(Number(orderContext?.order?.quantity || orderContext?.quantity || 1) || 1));
+  const totalProductAmount = Number(orderContext?.productAmount || 0);
+  const unitaryValue = totalProductAmount > 0
+    ? totalProductAmount / quantity
+    : (Number(orderContext?.order?.total || 1) / quantity);
+  const insuranceValue = Number(Number(packageData.insuranceValue || orderContext?.productAmount || 1).toFixed(2));
+  const volumeWeight = Number(Math.min(120, Number(packageData.weight || 0) * quantity).toFixed(3));
+  const productId = String(orderContext?.variationId || orderContext?.productId || `p-${Date.now()}`).slice(0, 64);
+  const productTitle = String(orderContext?.productTitle || "Produto").slice(0, 120);
+
+  const payload = {
+    platform: "Power Tech",
+    tag: String(orderContext?.externalReference || `pedido-${Date.now()}`).slice(0, 80),
+    from,
+    to,
+    service: serviceId,
+    products: [
+      {
+        id: productId,
+        sku: productId,
+        name: productTitle,
+        description: productTitle,
+        quantity,
+        unitary_value: Number(Number(unitaryValue || 1).toFixed(2)),
+        value: Number(Number(unitaryValue || 1).toFixed(2)),
+        weight: packageData.weight,
+        width: packageData.width,
+        height: packageData.height,
+        length: packageData.length,
+      },
+    ],
+    volumes: {
+      quantity: 1,
+      width: packageData.width,
+      height: packageData.height,
+      length: packageData.length,
+      weight: volumeWeight > 0 ? volumeWeight : packageData.weight,
+    },
+    options: {
+      insurance_value: insuranceValue,
+      use_insurance_value: insuranceValue > 0 || Boolean(shippingConfig?.options?.useInsuranceValue),
+      receipt: Boolean(shippingConfig?.options?.receipt),
+      own_hand: Boolean(shippingConfig?.options?.ownHand),
+      non_commercial: true,
+      invoice: { key: null },
+    },
+  };
+
+  const cart = await superFreteApiRequest("cart", {
+    method: "POST",
+    body: payload,
+  });
+  const superFreteOrderId = firstNonEmptyString(cart.parsed?.id, cart.parsed?.order?.id, cart.parsed?.data?.id);
+  if (!superFreteOrderId) {
+    const error = new Error("A Superfrete nao retornou o ID da ordem apos adicionar ao carrinho.");
+    error.statusCode = 500;
+    error.superFreteStep = "cart_create";
+    error.superFretePayload = safeJsonDebugValue(cart.parsed, null);
+    error.superFreteRequest = safeJsonDebugValue(payload, null);
+    throw error;
+  }
+
+  const checkout = await superFreteApiRequest("checkout", {
+    method: "POST",
+    body: { orders: [superFreteOrderId] },
+  });
+  const purchase = checkout.parsed?.purchase && typeof checkout.parsed.purchase === "object" ? checkout.parsed.purchase : {};
+  const purchaseOrders = Array.isArray(purchase.orders) ? purchase.orders : [];
+  const selectedOrder = purchaseOrders.find((item) => String(item?.id || "").trim() === superFreteOrderId)
+    || purchaseOrders[0]
+    || {};
+  const warnings = [];
+  let labelUrl = firstNonEmptyString(selectedOrder?.print?.url, selectedOrder?.url, checkout.parsed?.url);
+  let printed = null;
+
+  if (!labelUrl) {
+    try {
+      printed = await superFreteApiRequest("tag/print", {
+        method: "POST",
+        body: { orders: [superFreteOrderId] },
+      });
+      labelUrl = firstNonEmptyString(printed.parsed?.url);
+    } catch (error) {
+      warnings.push(error?.message || "Falha ao gerar URL da etiqueta na Superfrete.");
+    }
+  }
+
+  return {
+    provider: "superfrete",
+    status: labelUrl ? "created" : "created_without_label",
+    superFreteOrderId,
+    melhorEnvioOrderId: superFreteOrderId,
+    purchaseId: String(purchase?.id || "").trim(),
+    purchaseStatus: String(purchase?.status || (checkout.parsed?.success ? "paid" : "")).trim(),
+    protocol: firstNonEmptyString(selectedOrder?.protocol, cart.parsed?.protocol),
+    tracking: firstNonEmptyString(selectedOrder?.tracking, selectedOrder?.self_tracking, cart.parsed?.tracking, cart.parsed?.self_tracking),
+    labelGenerated: Boolean(labelUrl),
+    labelUrl,
+    serviceId,
+    agencyId: null,
+    serviceName: firstNonEmptyString(orderContext?.shipping?.serviceName, {
+      1: "PAC",
+      2: "SEDEX",
+      3: "Jadlog",
+      17: "Mini Envios",
+      31: "Loggi",
+    }[serviceId]),
+    companyName: firstNonEmptyString(orderContext?.shipping?.companyName, {
+      1: "Correios",
+      2: "Correios",
+      3: "Jadlog",
+      17: "Correios",
+      31: "Loggi",
+    }[serviceId]),
+    warnings,
+    meta: {
+      provider: "superfrete",
+      cart: safeJsonDebugValue(cart.parsed, null),
+      checkout: safeJsonDebugValue(checkout.parsed, null),
+      printed: safeJsonDebugValue(printed?.parsed, null),
+    },
+  };
 }
 
 async function createMelhorEnvioShipment(orderContext = {}) {
@@ -3097,12 +3623,18 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
 
   let shipment;
   try {
-    shipment = await createMelhorEnvioShipment(orderContext);
+    shipment = await createSuperFreteShipment(orderContext);
   } catch (error) {
-    const shippingErrorMessage = error?.message || "Falha ao criar envio no Melhor Envio.";
-    const shippingErrorStep = String(error?.meStep || "").trim();
-    const shippingErrorPayload = safeJsonDebugValue(error?.mePayload, null);
-    const shippingErrorRequest = safeJsonDebugValue(error?.meRequest, null);
+    if (shouldUseSuperFreteShipmentFallback(error)) {
+      shipment = buildFallbackShipmentFromContext(
+        orderContext,
+        `${error?.message || "Falha externa na Superfrete."} Pedido mantido em fallback manual.`,
+      );
+    } else {
+    const shippingErrorMessage = error?.message || "Falha ao criar envio na Superfrete.";
+    const shippingErrorStep = String(error?.superFreteStep || error?.meStep || "").trim();
+    const shippingErrorPayload = safeJsonDebugValue(error?.superFretePayload || error?.mePayload, null);
+    const shippingErrorRequest = safeJsonDebugValue(error?.superFreteRequest || error?.meRequest, null);
     const shippingErrorLog = {
       at: new Date().toISOString(),
       paymentId: id,
@@ -3112,8 +3644,9 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
       statusCode: Number(error?.statusCode || 0) || null,
       step: shippingErrorStep || null,
       message: shippingErrorMessage,
-      melhorEnvioError: shippingErrorPayload,
-      melhorEnvioRequest: shippingErrorRequest,
+      provider: "superfrete",
+      superFreteError: shippingErrorPayload,
+      superFreteRequest: shippingErrorRequest,
       orderContext: safeJsonDebugValue({
         serviceId: orderContext?.shipping?.serviceId || orderContext?.shipping?.service || orderContext?.shipping?.rawServiceId || null,
         agencyId: orderContext?.shipping?.agencyId || orderContext?.shipping?.agency || orderContext?.shipping?.rawAgencyId || null,
@@ -3174,6 +3707,7 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
       reason: "shipment_creation_failed",
       shipping: failedRecord,
     };
+    }
   }
   const status = shipment.status === "created_without_label" ? "created_without_label" : "created";
 
@@ -3187,6 +3721,8 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
     paymentStatusDetail,
     attempts,
     melhorEnvioOrderId: shipment.melhorEnvioOrderId,
+    superFreteOrderId: shipment.superFreteOrderId,
+    provider: shipment.provider || "superfrete",
     purchaseId: shipment.purchaseId,
     protocol: shipment.protocol,
     tracking: shipment.tracking,
@@ -3196,7 +3732,7 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
     serviceName: shipment.serviceName,
     companyName: shipment.companyName,
     errors: shipment.warnings || [],
-    auditEvent: "Envio criado no Melhor Envio.",
+    auditEvent: shipment.provider === "fallback" ? "Envio registrado em fallback." : "Envio criado na Superfrete.",
     lastAttemptAt: new Date().toISOString(),
   });
 
@@ -3212,6 +3748,8 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
       paymentStatusDetail,
       attempts,
       melhorEnvioOrderId: shipment.melhorEnvioOrderId,
+      superFreteOrderId: shipment.superFreteOrderId,
+      provider: shipment.provider || "superfrete",
       purchaseId: shipment.purchaseId,
       protocol: shipment.protocol,
       tracking: shipment.tracking,
@@ -3221,7 +3759,7 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
       serviceName: shipment.serviceName,
       companyName: shipment.companyName,
       errors: shipment.warnings || [],
-      auditEvent: "Envio criado no Melhor Envio.",
+      auditEvent: shipment.provider === "fallback" ? "Envio registrado em fallback." : "Envio criado na Superfrete.",
       lastAttemptAt: new Date().toISOString(),
     });
   }
@@ -3230,7 +3768,9 @@ async function processShippingFromPaymentIdUnlocked(paymentId, source = "system"
     await upsertCheckoutIntent(externalReference, {
       shipping: {
         status,
+        provider: shipment.provider || "superfrete",
         melhorEnvioOrderId: shipment.melhorEnvioOrderId,
+        superFreteOrderId: shipment.superFreteOrderId,
         purchaseId: shipment.purchaseId,
         protocol: shipment.protocol,
         tracking: shipment.tracking,
@@ -3342,72 +3882,41 @@ function createApp() {
 
   app.get("/api/melhorenvio/status", async (req, res) => {
     try {
-      const [tokenStatus, shippingConfig] = await Promise.all([
-        readMelhorEnvioTokenForStatus(),
-        readShippingConfig(),
-      ]);
-      const token = tokenStatus.token;
-      const redirectUri = resolveMelhorEnvioRedirectUri(req);
-      const scopes = resolveMelhorEnvioAuthScopes();
-      const readiness = getShippingIntegrationReadiness(token);
+      const shippingConfig = await readShippingConfig();
+      const readiness = getSuperFreteIntegrationReadiness();
 
       return res.json({
-        configured: Boolean(MELHOR_ENVIO_CLIENT_ID && MELHOR_ENVIO_CLIENT_SECRET),
+        provider: "superfrete",
+        configured: readiness.configured,
         connected: readiness.connected,
-        environment: MELHOR_ENVIO_ENVIRONMENT,
-        scopes,
+        environment: SUPERFRETE_ENVIRONMENT,
+        scopes: "",
         tokenScopes: readiness.tokenScopes,
         missingShipmentScopes: readiness.missingShipmentScopes,
         reconnectRequired: readiness.reconnectRequired,
-        refreshErrorMessage: readiness.refreshErrorMessage || String(tokenStatus.error?.message || ""),
+        refreshErrorMessage: "",
         readyForShipment: readiness.readyForShipment,
-        redirectUri,
-        tokenExpiresAt: readiness.connected ? String(token?.expiresAt || "") : "",
+        redirectUri: "",
+        tokenExpiresAt: "",
+        fallbackEnabled: readiness.fallbackEnabled,
         shippingConfig,
       });
     } catch {
-      return res.status(500).json({ message: "Erro ao consultar status da Melhor Envio." });
+      return res.status(500).json({ message: "Erro ao consultar status da Superfrete." });
     }
   });
 
   app.get("/api/melhorenvio/connect-url", async (req, res) => {
-    if (!MELHOR_ENVIO_CLIENT_ID || !MELHOR_ENVIO_CLIENT_SECRET) {
-      return res.status(500).json({ message: "Client ID/Secret da Melhor Envio nao configurados." });
-    }
-
-    const redirectUri = resolveMelhorEnvioRedirectUri(req);
-    if (!redirectUri || !/^https?:\/\//.test(redirectUri)) {
-      return res.status(400).json({ message: "Nao foi possivel resolver a URL de callback da Melhor Envio." });
-    }
-
-    const state = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + (15 * 60 * 1000)).toISOString();
-    await writeMelhorEnvioOAuthState({ state, expiresAt });
-
-    const query = new URLSearchParams({
-      response_type: "code",
-      client_id: MELHOR_ENVIO_CLIENT_ID,
-      redirect_uri: redirectUri,
-      scope: resolveMelhorEnvioAuthScopes(),
-      state,
-    });
-
     return res.json({
-      environment: MELHOR_ENVIO_ENVIRONMENT,
-      authUrl: `${getMelhorEnvioBaseEndpoint()}/oauth/authorize?${query.toString()}`,
-      redirectUri,
-      stateExpiresAt: expiresAt,
+      provider: "superfrete",
+      environment: SUPERFRETE_ENVIRONMENT,
+      authUrl: "",
+      message: "Superfrete usa token fixo e nao precisa de OAuth.",
     });
   });
 
   app.post("/api/melhorenvio/disconnect", async (_req, res) => {
-    try {
-      await writeMelhorEnvioToken(null);
-      await writeMelhorEnvioOAuthState(null);
-      return res.json({ ok: true });
-    } catch {
-      return res.status(500).json({ message: "Nao foi possivel desconectar a Melhor Envio." });
-    }
+    return res.json({ ok: true, provider: "superfrete", message: "Superfrete usa token fixo e nao foi desconectada." });
   });
 
   app.get(MELHOR_ENVIO_REDIRECT_PATH, async (req, res) => {
@@ -3487,17 +3996,19 @@ function createApp() {
 
   app.get("/api/shipping/config", async (_req, res) => {
     try {
-      const [config, tokenStatus] = await Promise.all([readShippingConfig(), readMelhorEnvioTokenForStatus()]);
-      const token = tokenStatus.token;
-      const readiness = getShippingIntegrationReadiness(token);
+      const config = await readShippingConfig();
+      const readiness = getSuperFreteIntegrationReadiness();
       return res.json({
-        environment: MELHOR_ENVIO_ENVIRONMENT,
+        provider: "superfrete",
+        configured: readiness.configured,
+        environment: SUPERFRETE_ENVIRONMENT,
         connected: readiness.connected,
         tokenScopes: readiness.tokenScopes,
         missingShipmentScopes: readiness.missingShipmentScopes,
         reconnectRequired: readiness.reconnectRequired,
-        refreshErrorMessage: readiness.refreshErrorMessage || String(tokenStatus.error?.message || ""),
+        refreshErrorMessage: "",
         readyForShipment: readiness.readyForShipment,
+        fallbackEnabled: readiness.fallbackEnabled,
         config,
       });
     } catch {
@@ -3575,31 +4086,45 @@ function createApp() {
         requestPayload.services = shippingConfig.services.join(",");
       }
 
-      const { response, parsed } = await melhorEnvioApiRequest("me/shipment/calculate", {
-        method: "POST",
-        body: JSON.stringify(requestPayload),
-      });
+      let quotes = [];
+      let fallback = false;
+      let fallbackReason = "";
 
-      if (!response.ok) {
-        const message = extractMelhorEnvioError(parsed);
-        return res.status(response.status).json({ message });
+      try {
+        const { parsed } = await superFreteApiRequest("calculator", {
+          method: "POST",
+          body: requestPayload,
+        });
+        quotes = parseSuperFreteQuoteList(parsed).filter((quote) => quote.price > 0 && !quote.error);
+      } catch (error) {
+        fallback = true;
+        fallbackReason = error?.message || "Superfrete indisponivel.";
+        console.warn("[shipping-quote] Superfrete fallback:", fallbackReason);
       }
 
-      const quotes = parseMelhorEnvioQuoteList(parsed).filter((quote) => quote.price > 0 && !quote.error);
+      if (!quotes.length) {
+        fallback = true;
+        fallbackReason = fallbackReason || "Nenhuma cotacao retornada pela Superfrete.";
+        quotes = [buildFallbackShippingQuote(fallbackReason)];
+      }
+
       return res.json({
+        provider: "superfrete",
         productId: product.id,
         variationId: variation?.id || "",
         fromPostalCode,
         toPostalCode,
         quantity,
         quotes,
-        hasErrorQuotes: Array.isArray(parsed) && parsed.some((item) => String(item?.error || "").trim()),
+        fallback,
+        fallbackReason,
+        hasErrorQuotes: false,
       });
     } catch (error) {
       return res.status(error?.statusCode || 500).json({
-        message: error?.message || "Falha ao calcular frete no Melhor Envio.",
+        message: error?.message || "Falha ao calcular frete na Superfrete.",
         code: error?.code || undefined,
-        reconnectRequired: Boolean(error?.reconnectRequired),
+        reconnectRequired: false,
       });
     }
   });
@@ -3611,39 +4136,22 @@ function createApp() {
     }
 
     try {
-      const token = await readMelhorEnvioToken();
-      const readiness = getShippingIntegrationReadiness(token);
-      if (!readiness.connected) {
-        return res.status(409).json({
-          message: "Melhor Envio nao conectada. Conecte o app no painel do vendedor.",
-          code: "SHIPPING_NOT_CONNECTED",
-        });
-      }
-
-      const missingTrackingScopes = getMissingScopes(readiness.tokenScopes, ["shipping-tracking"]);
-      if (missingTrackingScopes.length) {
-        return res.status(409).json({
-          message: `Reconecte a Melhor Envio para liberar os escopos de rastreio: ${missingTrackingScopes.join(", ")}.`,
-          code: "SHIPPING_TRACKING_SCOPES_MISSING",
-          missingScopes: missingTrackingScopes,
-        });
-      }
-
-      const { response, parsed } = await melhorEnvioApiRequest("me/shipment/tracking", {
-        method: "POST",
-        body: JSON.stringify({ orders: [orderId] }),
+      const all = await readShippingOrders();
+      const record = Object.values(all).find((item) => {
+        if (!item || typeof item !== "object") return false;
+        return [
+          item.superFreteOrderId,
+          item.melhorEnvioOrderId,
+          item.tracking,
+          item.protocol,
+          item.paymentId,
+          item.externalReference,
+        ].some((value) => String(value || "").trim() === orderId);
       });
 
-      if (!response.ok) {
-        return res.status(response.status).json({
-          message: extractMelhorEnvioError(parsed),
-        });
-      }
-
-      const tracking = normalizeMelhorEnvioTrackingEntry(parsed, orderId);
-      if (!tracking.found) {
+      if (!record) {
         return res.status(404).json({
-          message: "Nao encontramos dados de rastreio para esta ordem na Melhor Envio.",
+          message: "Nao encontramos dados de rastreio para esta ordem.",
           orderId,
         });
       }
@@ -3651,11 +4159,24 @@ function createApp() {
       return res.json({
         ok: true,
         orderId,
-        tracking,
+        tracking: {
+          found: true,
+          orderId: String(record.superFreteOrderId || record.melhorEnvioOrderId || orderId),
+          status: String(record.status || ""),
+          protocol: String(record.protocol || ""),
+          tracking: String(record.tracking || ""),
+          melhorEnvioTracking: String(record.tracking || ""),
+          trackingCode: String(record.tracking || record.protocol || ""),
+          createdAt: String(record.createdAt || ""),
+          paidAt: String(record.updatedAt || ""),
+          generatedAt: String(record.updatedAt || ""),
+          postedAt: "",
+          deliveredAt: "",
+        },
       });
     } catch (error) {
       return res.status(error?.statusCode || 500).json({
-        message: error?.message || "Falha ao consultar rastreio na Melhor Envio.",
+        message: error?.message || "Falha ao consultar rastreio.",
       });
     }
   });
@@ -3871,7 +4392,7 @@ function createApp() {
           externalReference: String(item.externalReference || "").trim(),
           status: String(item.status || "").trim(),
           trackingId: String(item.tracking || "").trim(),
-          orderId: String(item.melhorEnvioOrderId || "").trim(),
+          orderId: String(item.superFreteOrderId || item.melhorEnvioOrderId || "").trim(),
           protocol: String(item.protocol || "").trim(),
           updatedAt: String(item.updatedAt || item.createdAt || ""),
         }));
@@ -4049,24 +4570,8 @@ function createApp() {
           errors: orderValidationErrors,
         });
       }
-
-      const { token } = await readMelhorEnvioTokenForStatus();
-      const readiness = getShippingIntegrationReadiness(token);
-      if (!readiness.connected) {
-        return res.status(409).json({
-          message: readiness.reconnectRequired
-            ? "Nao foi possivel renovar o token da Melhor Envio. Reconecte o app."
-            : "Integracao de frete indisponivel. Conecte a Melhor Envio no painel do vendedor.",
-          code: readiness.reconnectRequired ? "MELHOR_ENVIO_REFRESH_TOKEN_INVALID" : "SHIPPING_NOT_CONNECTED",
-          reconnectRequired: readiness.reconnectRequired,
-        });
-      }
-      if (!readiness.readyForShipment) {
-        return res.status(409).json({
-          message: `Reconecte a Melhor Envio para liberar os escopos de envio: ${readiness.missingShipmentScopes.join(", ")}.`,
-          code: "SHIPPING_SCOPES_MISSING",
-          missingScopes: readiness.missingShipmentScopes,
-        });
+      if (!SUPERFRETE_TOKEN) {
+        console.warn("[checkout] Superfrete sem token configurado; checkout seguira com envio fallback.");
       }
     }
 
@@ -4530,7 +5035,6 @@ app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
   void bootstrapPaymentWatchers().catch((error) => {
     console.error("[payment-watch-bootstrap] erro:", error?.message || error);
   });
-  startMelhorEnvioTokenMaintenance();
 
   return app;
 }
