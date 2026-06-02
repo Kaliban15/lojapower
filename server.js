@@ -104,6 +104,7 @@ const shippingProcessLocks = new Map();
 const paymentWatchByReference = new Map();
 const PAYMENT_WATCH_INTERVAL_MS = Math.max(5000, Math.floor(Number(process.env.PAYMENT_WATCH_INTERVAL_MS || 15000) || 15000));
 const PAYMENT_WATCH_MAX_ATTEMPTS = Math.max(1, Math.floor(Number(process.env.PAYMENT_WATCH_MAX_ATTEMPTS || 240) || 240));
+const MERCADO_LIVRE_STORE_URL = "https://www.mercadolivre.com.br/pagina/powertechcompanypowertechcom";
 
 const CATEGORIES = [
   "Fones de ouvido",
@@ -4011,6 +4012,12 @@ function createApp() {
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  app.get(["/mercadolivre", "/mercadolivre/"], (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    return res.redirect(302, MERCADO_LIVRE_STORE_URL);
+  });
+
   app.use(express.static(ROOT_DIR));
   app.use("/vendedor", express.static(path.join(ROOT_DIR, "vendedor")));
   app.use("/uploads", express.static(UPLOAD_DIR));
