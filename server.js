@@ -4018,6 +4018,10 @@ function createApp() {
     return res.redirect(302, MERCADO_LIVRE_STORE_URL);
   });
 
+  app.get(["/manual-rastreador", "/manual-rastreador/"], (_req, res) => {
+    res.sendFile(path.join(ROOT_DIR, "manual-rastreador.html"));
+  });
+
   app.use(express.static(ROOT_DIR));
   app.use("/vendedor", express.static(path.join(ROOT_DIR, "vendedor")));
   app.use("/uploads", express.static(UPLOAD_DIR));
