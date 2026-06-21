@@ -42,6 +42,12 @@ const senderComplementInput = document.getElementById("senderComplementInput");
 const senderDistrictInput = document.getElementById("senderDistrictInput");
 const senderCityInput = document.getElementById("senderCityInput");
 const senderStateInput = document.getElementById("senderStateInput");
+const meliStatusText = document.getElementById("meliStatusText");
+const meliSellerId = document.getElementById("meliSellerId");
+const meliLinkedProducts = document.getElementById("meliLinkedProducts");
+const meliLastSync = document.getElementById("meliLastSync");
+const syncMeliPricesBtn = document.getElementById("syncMeliPricesBtn");
+const meliSyncMessage = document.getElementById("meliSyncMessage");
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -58,6 +64,7 @@ const state = {
   },
   shippingConfig: null,
   melhorEnvioStatus: null,
+  meliStatus: null,
   sales: [],
   salesError: "",
   createDraftImages: [],
@@ -191,6 +198,30 @@ function parseServiceIds(value) {
     .map((item) => Number(String(item).replace(/\D/g, "")))
     .filter((item) => Number.isFinite(item) && item > 0)
     .map((item) => Math.floor(item));
+}
+
+function extractMeliItemId(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/ML[A-Z]{1,3}-?\d{6,}/i);
+  return match ? match[0].replace("-", "").toUpperCase() : "";
+}
+
+function normalizePercent(value, fallback = 10) {
+  const parsed = normalizePrice(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Number(Math.max(0, Math.min(95, parsed)).toFixed(2));
+}
+
+function parseMlPriceSyncFromForm(formData) {
+  const enabled = formData.get("mlSyncEnabled") === "on";
+  const itemId = extractMeliItemId(formData.get("mlItemId"));
+  const discountPercent = normalizePercent(formData.get("mlDiscountPercent"), 10);
+
+  return {
+    enabled,
+    itemId,
+    discountPercent,
+  };
 }
 
 function collectSenderPayload() {
@@ -675,6 +706,11 @@ async function fetchMelhorEnvioStatus() {
   return readJsonResponse(response);
 }
 
+async function fetchMeliStatus() {
+  const response = await fetch("/api/meli/status");
+  return readJsonResponse(response);
+}
+
 async function fetchSales() {
   const response = await fetch("/api/admin/sales?limit=200");
   return readJsonResponse(response);
@@ -917,6 +953,68 @@ function clearCreateVariationDrafts() {
   renderVariationsEditor("create");
 }
 
+function normalizeProductMlSync(product = {}) {
+  const sync = product.mlPriceSync && typeof product.mlPriceSync === "object" ? product.mlPriceSync : {};
+  return {
+    enabled: Boolean(sync.enabled),
+    itemId: String(sync.itemId || "").trim(),
+    discountPercent: normalizePercent(sync.discountPercent, 10),
+    mlPrice: Number(sync.mlPrice || 0),
+    sitePrice: Number(sync.sitePrice || 0),
+    mlTitle: String(sync.mlTitle || "").trim(),
+    mlStatus: String(sync.mlStatus || "").trim(),
+    mlPermalink: String(sync.mlPermalink || "").trim(),
+    lastSyncedAt: String(sync.lastSyncedAt || "").trim(),
+    lastError: String(sync.lastError || "").trim(),
+  };
+}
+
+function mlSyncMetaHtml(product = {}) {
+  const sync = normalizeProductMlSync(product);
+  const lines = [];
+  if (sync.mlPrice > 0) lines.push(`Preco ML: ${currency.format(sync.mlPrice)}`);
+  if (sync.sitePrice > 0) lines.push(`Preco no site: ${currency.format(sync.sitePrice)}`);
+  if (sync.lastSyncedAt) lines.push(`Ultima sync: ${formatDateTime(sync.lastSyncedAt)}`);
+  if (sync.mlStatus) lines.push(`Status ML: ${sync.mlStatus}`);
+  if (sync.lastError) lines.push(`Erro: ${sync.lastError}`);
+  if (!lines.length) lines.push("Ainda nao sincronizado.");
+
+  const link = sync.mlPermalink
+    ? `<a href="${escapeHtml(sync.mlPermalink)}" target="_blank" rel="noopener noreferrer">Abrir anuncio ML</a>`
+    : "";
+
+  return `
+    <div class="ml-sync-meta ${sync.lastError ? "has-error" : ""}">
+      ${lines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}
+      ${link}
+    </div>
+  `;
+}
+
+function mlPriceSyncBoxHtml(product = {}) {
+  const sync = normalizeProductMlSync(product);
+  return `
+    <div class="ml-sync-box">
+      <label class="check-item ml-sync-toggle">
+        <input type="checkbox" name="mlSyncEnabled" ${sync.enabled ? "checked" : ""} />
+        Vincular preco ML
+      </label>
+      <div class="ml-sync-grid">
+        <label>
+          ID ou link do anuncio Mercado Livre
+          <input type="text" name="mlItemId" value="${escapeHtml(sync.itemId)}" placeholder="MLB1234567890 ou link do anuncio" />
+        </label>
+        <label>
+          Desconto automatico (%)
+          <input type="text" name="mlDiscountPercent" inputmode="decimal" value="${escapeHtml(String(sync.discountPercent || 10).replace(".", ","))}" />
+        </label>
+      </div>
+      ${mlSyncMetaHtml(product)}
+      <button type="button" class="btn btn-light" data-sync-product-ml-price="${escapeHtml(product.id || "")}">Sincronizar este produto agora</button>
+    </div>
+  `;
+}
+
 function productItemTemplate(product) {
   const images = Array.isArray(product.images) ? product.images : [];
   const productId = String(product.id || "");
@@ -958,6 +1056,8 @@ function productItemTemplate(product) {
           Valor promocional (opcional)
           <input type="text" name="promoPrice" value="${product.promoPrice ? String(product.promoPrice).replace(".", ",") : ""}" />
         </label>
+
+        ${mlPriceSyncBoxHtml(product)}
 
         <label>
           Descricao
@@ -1111,6 +1211,29 @@ function renderShippingPanel() {
   }
 }
 
+function renderMeliPanel() {
+  const status = state.meliStatus || {};
+  if (!meliStatusText) return;
+
+  meliStatusText.textContent = status.connected
+    ? (status.running ? "Conectado - sincronizando agora" : "Conectado")
+    : "Credenciais ausentes";
+  if (meliSellerId) meliSellerId.textContent = String(status.sellerId || "-");
+  if (meliLinkedProducts) meliLinkedProducts.textContent = String(status.linkedProducts || 0);
+
+  const lastSync = status.lastSync || null;
+  if (meliLastSync) {
+    if (!lastSync) {
+      meliLastSync.textContent = "-";
+    } else {
+      const when = formatDateTime(lastSync.finishedAt || lastSync.startedAt);
+      const result = lastSync.ok ? "ok" : "falha";
+      const counts = `${Number(lastSync.synced || 0)} ok / ${Number(lastSync.failed || 0)} falha(s)`;
+      meliLastSync.textContent = `${when || "-"} (${result}, ${counts})`;
+    }
+  }
+}
+
 function buildSaleAddress(address = {}) {
   const parts = [
     String(address.street || "").trim(),
@@ -1212,12 +1335,17 @@ function renderSalesList() {
 }
 
 async function reloadAll() {
-  const [categories, products, content, shippingConfig, melhorEnvioStatus, salesResult] = await Promise.all([
+  const [categories, products, content, shippingConfig, melhorEnvioStatus, meliStatus, salesResult] = await Promise.all([
     fetchCategories(),
     fetchProducts(),
     fetchContent(),
     fetchShippingConfig(),
     fetchMelhorEnvioStatus(),
+    fetchMeliStatus().catch(() => ({
+      connected: false,
+      linkedProducts: 0,
+      lastSync: null,
+    })),
     fetchSales().catch((error) => ({
       sales: [],
       error: error?.message || "Falha ao carregar vendas aprovadas.",
@@ -1233,6 +1361,7 @@ async function reloadAll() {
   };
   state.shippingConfig = shippingConfig || {};
   state.melhorEnvioStatus = melhorEnvioStatus || {};
+  state.meliStatus = meliStatus || {};
   state.sales = Array.isArray(salesResult?.sales) ? salesResult.sales : [];
   state.salesError = String(salesResult?.error || "").trim();
 
@@ -1244,6 +1373,7 @@ async function reloadAll() {
   renderCreateDraftImages();
   renderVariationsEditor("create");
   renderShippingPanel();
+  renderMeliPanel();
   renderSalesList();
 }
 
@@ -1253,6 +1383,12 @@ productForm.addEventListener("submit", async (event) => {
 
   const formData = new FormData(productForm);
   const files = state.createDraftImages.map((item) => item.file).filter(Boolean);
+  const mlPriceSyncDraft = parseMlPriceSyncFromForm(formData);
+
+  if (mlPriceSyncDraft.enabled && !mlPriceSyncDraft.itemId) {
+    showMessage(formMessage, "Informe um ID ou link valido do anuncio Mercado Livre.", "error");
+    return;
+  }
 
   let uploadedImages = [];
   try {
@@ -1281,6 +1417,7 @@ productForm.addEventListener("submit", async (event) => {
     bullets: parseBullets(formData.get("bulletsText")),
     trustCards: parseTrustCards(formData.get("trustCardsText")),
     variations: variationPayload,
+    mlPriceSync: mlPriceSyncDraft,
     shipping: parseShippingPackageFromForm(
       formData,
       normalizePrice(formData.get("promoPrice")) || normalizePrice(formData.get("price")),
@@ -1429,6 +1566,29 @@ productList.addEventListener("click", async (event) => {
     return;
   }
 
+  const syncMlBtn = event.target.closest("[data-sync-product-ml-price]");
+  if (syncMlBtn) {
+    const id = String(syncMlBtn.getAttribute("data-sync-product-ml-price") || "").trim();
+    if (!id) return;
+    syncMlBtn.disabled = true;
+    showMessage(formMessage, "Sincronizando preco deste produto com o Mercado Livre...", "");
+    try {
+      const response = await fetch(`/api/products/${encodeURIComponent(id)}/sync-ml-price`, {
+        method: "POST",
+      });
+      const result = await readJsonResponse(response);
+      const synced = Number(result.synced || 0);
+      const failed = Number(result.failed || 0);
+      showMessage(formMessage, `Sync ML concluida: ${synced} ok / ${failed} falha(s).`, failed ? "error" : "success");
+      await reloadAll();
+    } catch (error) {
+      showMessage(formMessage, error.message || "Erro ao sincronizar preco ML.", "error");
+    } finally {
+      syncMlBtn.disabled = false;
+    }
+    return;
+  }
+
   const saveBtn = event.target.closest("[data-save-product]");
   const deleteBtn = event.target.closest("[data-delete-product]");
 
@@ -1437,6 +1597,12 @@ productList.addEventListener("click", async (event) => {
     const card = saveBtn.closest(".product-item");
     const form = card.querySelector(".product-edit-form");
     const formData = new FormData(form);
+    const mlPriceSyncDraft = parseMlPriceSyncFromForm(formData);
+
+    if (mlPriceSyncDraft.enabled && !mlPriceSyncDraft.itemId) {
+      showMessage(formMessage, "Informe um ID ou link valido do anuncio Mercado Livre.", "error");
+      return;
+    }
 
     const currentImages = JSON.parse(card.dataset.images || "[]");
     const files = getEditDraftImages(id).map((item) => item.file).filter(Boolean);
@@ -1469,6 +1635,7 @@ productList.addEventListener("click", async (event) => {
       bullets: parseBullets(formData.get("bulletsText")),
       trustCards: parseTrustCards(formData.get("trustCardsText")),
       variations: variationPayload,
+      mlPriceSync: mlPriceSyncDraft,
       shipping: parseShippingPackageFromForm(
         formData,
         normalizePrice(formData.get("promoPrice")) || normalizePrice(formData.get("price")),
@@ -1588,6 +1755,25 @@ connectMelhorEnvioBtn.addEventListener("click", async () => {
 disconnectMelhorEnvioBtn.addEventListener("click", async () => {
   showMessage(shippingMessage, "", "");
   showMessage(shippingMessage, "Superfrete nao usa OAuth, entao nao ha conexao para remover.", "success");
+});
+
+syncMeliPricesBtn?.addEventListener("click", async () => {
+  showMessage(meliSyncMessage, "", "");
+  syncMeliPricesBtn.disabled = true;
+  showMessage(meliSyncMessage, "Sincronizando produtos vinculados ao Mercado Livre...", "");
+
+  try {
+    const response = await fetch("/api/meli/price-sync/run", { method: "POST" });
+    const result = await readJsonResponse(response);
+    const synced = Number(result.synced || 0);
+    const failed = Number(result.failed || 0);
+    showMessage(meliSyncMessage, `Sync ML concluida: ${synced} ok / ${failed} falha(s).`, failed ? "error" : "success");
+    await reloadAll();
+  } catch (error) {
+    showMessage(meliSyncMessage, error.message || "Erro ao sincronizar precos ML.", "error");
+  } finally {
+    syncMeliPricesBtn.disabled = false;
+  }
 });
 
 productForm.addEventListener("change", (event) => {

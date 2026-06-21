@@ -105,6 +105,20 @@ const paymentWatchByReference = new Map();
 const PAYMENT_WATCH_INTERVAL_MS = Math.max(5000, Math.floor(Number(process.env.PAYMENT_WATCH_INTERVAL_MS || 15000) || 15000));
 const PAYMENT_WATCH_MAX_ATTEMPTS = Math.max(1, Math.floor(Number(process.env.PAYMENT_WATCH_MAX_ATTEMPTS || 240) || 240));
 const MERCADO_LIVRE_STORE_URL = "https://www.mercadolivre.com.br/pagina/powertechcompanypowertechcom";
+const MERCADO_LIVRE_API_BASE_URL = "https://api.mercadolibre.com";
+const MELI_CREDENTIALS_INTEGRATION_ID = "mercado_livre_credentials";
+const MELI_PRICE_SYNC_STATUS_ID = "meli_price_sync_status";
+const MELI_PRICE_SYNC_INTERVAL_MS = Math.max(
+  60 * 60 * 1000,
+  Math.floor(Number(process.env.MELI_PRICE_SYNC_INTERVAL_MS || 12 * 60 * 60 * 1000) || 12 * 60 * 60 * 1000),
+);
+const MELI_PRICE_SYNC_STARTUP_DELAY_MS = Math.max(
+  10 * 1000,
+  Math.floor(Number(process.env.MELI_PRICE_SYNC_STARTUP_DELAY_MS || 30 * 1000) || 30 * 1000),
+);
+let meliPriceSyncTimer = null;
+let meliPriceSyncStartupTimer = null;
+let meliPriceSyncRunning = false;
 
 const CATEGORIES = [
   "Fones de ouvido",
@@ -1621,6 +1635,71 @@ function getVariationDisplayLabel(variation = {}) {
   return value || name || "";
 }
 
+function normalizeBoolean(value) {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "on", "yes", "sim"].includes(normalized);
+}
+
+function roundCurrency(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Number(parsed.toFixed(2));
+}
+
+function parsePositivePrice(value) {
+  const parsed = Number(normalizePrice(value));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return roundCurrency(parsed);
+}
+
+function normalizeDiscountPercent(value, fallback = 10) {
+  const raw = value === null || value === undefined || value === "" ? fallback : value;
+  const parsed = Number(normalizePrice(raw));
+  const safe = Number.isFinite(parsed) ? parsed : fallback;
+  return Number(Math.max(0, Math.min(95, safe)).toFixed(2));
+}
+
+function extractMeliItemId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const match = raw.match(/ML[A-Z]{1,3}-?\d{6,}/i);
+  if (!match) return "";
+  return match[0].replace("-", "").toUpperCase();
+}
+
+function normalizeMlPriceSync(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  const enabled = normalizeBoolean(source.enabled);
+  const itemId = extractMeliItemId(
+    source.itemId
+    || source.item_id
+    || source.mlItemId
+    || source.url
+    || source.permalink,
+  );
+  const discountPercent = normalizeDiscountPercent(
+    source.discountPercent
+    ?? source.discount_percent
+    ?? source.discount
+    ?? 10,
+  );
+
+  return {
+    enabled,
+    itemId,
+    discountPercent,
+    mlPrice: parsePositivePrice(source.mlPrice ?? source.ml_price),
+    sitePrice: parsePositivePrice(source.sitePrice ?? source.site_price),
+    mlTitle: String(source.mlTitle || source.ml_title || "").trim(),
+    mlStatus: String(source.mlStatus || source.ml_status || "").trim(),
+    mlPermalink: String(source.mlPermalink || source.ml_permalink || source.permalink || "").trim(),
+    lastSyncedAt: String(source.lastSyncedAt || source.last_synced_at || "").trim(),
+    lastError: String(source.lastError || source.last_error || "").trim(),
+  };
+}
+
 function sanitizeProduct(product = {}) {
   const categories = normalizeCategoryList(product.categories || product.category);
   const images = normalizeImages(product);
@@ -1638,6 +1717,7 @@ function sanitizeProduct(product = {}) {
   const variations = normalizeVariations(product.variations);
   const insuranceBase = promoPrice || price || 1;
   const shipping = normalizeShippingPackage(product.shipping || {}, insuranceBase);
+  const mlPriceSync = normalizeMlPriceSync(product.mlPriceSync || product.meliPriceSync || {});
 
   return {
     id: String(product.id || `p-${Date.now()}`),
@@ -1652,6 +1732,7 @@ function sanitizeProduct(product = {}) {
     trustCards: normalizeTrustCards(product.trustCards),
     variations,
     shipping,
+    mlPriceSync,
     createdAt: String(product.createdAt || new Date().toISOString()),
   };
 }
@@ -1681,6 +1762,381 @@ async function writeProducts(products) {
   } catch (error) {
     console.error("Erro ao salvar produtos:", error);
   }
+}
+
+function normalizeMeliCredentials(input = {}) {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    accessToken: String(source.accessToken || source.access_token || process.env.MELI_ACCESS_TOKEN || "").trim(),
+    refreshToken: String(source.refreshToken || source.refresh_token || process.env.MELI_REFRESH_TOKEN || "").trim(),
+    clientId: String(source.clientId || source.client_id || process.env.MELI_CLIENT_ID || "").trim(),
+    clientSecret: String(source.clientSecret || source.client_secret || process.env.MELI_CLIENT_SECRET || "").trim(),
+    sellerId: String(source.sellerId || source.seller_id || process.env.MELI_SELLER_ID || "").trim(),
+    redirectUri: String(source.redirectUri || source.redirect_uri || process.env.MELI_REDIRECT_URI || "").trim(),
+  };
+}
+
+function hasMeliCredentials(credentials = {}) {
+  return Boolean(
+    credentials.clientId
+    && credentials.clientSecret
+    && credentials.refreshToken
+    && (credentials.accessToken || credentials.refreshToken),
+  );
+}
+
+async function readMeliCredentials() {
+  const envCredentials = normalizeMeliCredentials({});
+  try {
+    const db = await connectDB();
+    const stored = await db.collection("integrations").findOne({ _id: MELI_CREDENTIALS_INTEGRATION_ID });
+    return normalizeMeliCredentials({ ...envCredentials, ...(stored || {}) });
+  } catch (error) {
+    console.error("[meli] erro ao ler credenciais:", error?.message || error);
+    return envCredentials;
+  }
+}
+
+async function writeMeliCredentials(patch = {}) {
+  const normalized = normalizeMeliCredentials(patch);
+  const data = {
+    accessToken: normalized.accessToken,
+    refreshToken: normalized.refreshToken,
+    clientId: normalized.clientId,
+    clientSecret: normalized.clientSecret,
+    sellerId: normalized.sellerId,
+    redirectUri: normalized.redirectUri,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const db = await connectDB();
+  await db.collection("integrations").updateOne(
+    { _id: MELI_CREDENTIALS_INTEGRATION_ID },
+    { $set: data },
+    { upsert: true },
+  );
+  return data;
+}
+
+async function refreshMeliAccessToken(credentials = {}) {
+  if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
+    throw new Error("Credenciais do Mercado Livre incompletas para renovar token.");
+  }
+
+  const params = new URLSearchParams();
+  params.set("grant_type", "refresh_token");
+  params.set("client_id", credentials.clientId);
+  params.set("client_secret", credentials.clientSecret);
+  params.set("refresh_token", credentials.refreshToken);
+
+  const response = await fetch(`${MERCADO_LIVRE_API_BASE_URL}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const parsed = await response.json().catch(() => ({}));
+
+  if (!response.ok || !parsed?.access_token) {
+    throw new Error(parsed?.message || parsed?.error_description || "Nao foi possivel renovar o token do Mercado Livre.");
+  }
+
+  const nextCredentials = normalizeMeliCredentials({
+    ...credentials,
+    accessToken: parsed.access_token,
+    refreshToken: parsed.refresh_token || credentials.refreshToken,
+    sellerId: parsed.user_id || credentials.sellerId,
+  });
+  await writeMeliCredentials(nextCredentials);
+  return nextCredentials;
+}
+
+async function fetchMeliJson(pathname, credentials, options = {}) {
+  const retry = options.retry !== false;
+  const url = String(pathname || "").startsWith("http")
+    ? String(pathname)
+    : `${MERCADO_LIVRE_API_BASE_URL}${pathname}`;
+  let currentCredentials = credentials;
+
+  if (!currentCredentials?.accessToken && currentCredentials?.refreshToken) {
+    currentCredentials = await refreshMeliAccessToken(currentCredentials);
+    if (credentials && typeof credentials === "object") Object.assign(credentials, currentCredentials);
+  }
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${currentCredentials.accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401 && retry && currentCredentials?.refreshToken) {
+    const renewed = await refreshMeliAccessToken(currentCredentials);
+    if (credentials && typeof credentials === "object") Object.assign(credentials, renewed);
+    return fetchMeliJson(pathname, renewed, { retry: false });
+  }
+
+  const parsed = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(parsed?.message || parsed?.error || `Erro Mercado Livre HTTP ${response.status}.`);
+  }
+
+  return parsed;
+}
+
+function isMeliPriceEntryActive(entry = {}, now = new Date()) {
+  const conditions = entry?.conditions || {};
+  const startRaw = conditions.start_time || conditions.startTime;
+  const endRaw = conditions.end_time || conditions.endTime;
+  const start = startRaw ? Date.parse(String(startRaw)) : 0;
+  const end = endRaw ? Date.parse(String(endRaw)) : 0;
+  const nowTime = now.getTime();
+
+  if (Number.isFinite(start) && start > 0 && nowTime < start) return false;
+  if (Number.isFinite(end) && end > 0 && nowTime > end) return false;
+  return true;
+}
+
+function getMeliSalePriceValue(item = {}) {
+  const salePrice = item?.sale_price;
+  if (salePrice && typeof salePrice === "object") {
+    return parsePositivePrice(salePrice.amount || salePrice.price);
+  }
+  return parsePositivePrice(salePrice);
+}
+
+function deriveMeliPricing(item = {}, pricesPayload = {}) {
+  const candidates = [];
+  const regularCandidates = [];
+  const salePrice = getMeliSalePriceValue(item);
+  const itemPrice = parsePositivePrice(item.price);
+  const itemBasePrice = parsePositivePrice(item.base_price);
+  const itemOriginalPrice = parsePositivePrice(item.original_price);
+
+  if (itemPrice) candidates.push({ price: itemPrice, source: "item.price" });
+  if (salePrice) candidates.push({ price: salePrice, source: "item.sale_price" });
+  if (itemBasePrice) regularCandidates.push(itemBasePrice);
+  if (itemOriginalPrice) regularCandidates.push(itemOriginalPrice);
+
+  const prices = Array.isArray(pricesPayload?.prices) ? pricesPayload.prices : [];
+  for (const entry of prices) {
+    const amount = parsePositivePrice(entry?.amount);
+    if (amount && isMeliPriceEntryActive(entry)) {
+      candidates.push({ price: amount, source: `prices.${entry?.type || "amount"}` });
+    }
+
+    const regularAmount = parsePositivePrice(entry?.regular_amount);
+    if (regularAmount) regularCandidates.push(regularAmount);
+  }
+
+  if (!candidates.length) {
+    throw new Error("Mercado Livre nao retornou preco valido para o anuncio.");
+  }
+
+  const best = candidates.sort((a, b) => a.price - b.price)[0];
+  const regularPrice = regularCandidates.length
+    ? Math.max(...regularCandidates)
+    : best.price;
+
+  return {
+    currentPrice: best.price,
+    regularPrice: roundCurrency(regularPrice),
+    source: best.source,
+  };
+}
+
+async function fetchMeliItemPricing(itemId, credentials) {
+  const normalizedItemId = extractMeliItemId(itemId);
+  if (!normalizedItemId) {
+    throw new Error("ID do anuncio Mercado Livre invalido.");
+  }
+
+  const item = await fetchMeliJson(`/items/${encodeURIComponent(normalizedItemId)}`, credentials);
+  let pricesPayload = {};
+  try {
+    pricesPayload = await fetchMeliJson(`/items/${encodeURIComponent(normalizedItemId)}/prices`, credentials);
+  } catch (error) {
+    console.warn(`[meli] endpoint de precos indisponivel para ${normalizedItemId}:`, error?.message || error);
+  }
+
+  const pricing = deriveMeliPricing(item, pricesPayload);
+  return {
+    itemId: normalizedItemId,
+    title: String(item?.title || "").trim(),
+    status: String(item?.status || "").trim(),
+    permalink: String(item?.permalink || "").trim(),
+    ...pricing,
+  };
+}
+
+function computeMeliDiscountedSitePrice(mlPrice, discountPercent) {
+  const current = parsePositivePrice(mlPrice);
+  if (!current) return 0;
+  const discount = normalizeDiscountPercent(discountPercent, 10);
+  return roundCurrency(Math.max(0.01, current * (1 - discount / 100)));
+}
+
+function applyMeliPricingToProduct(product = {}, pricing = {}) {
+  const sync = normalizeMlPriceSync(product.mlPriceSync || {});
+  const discountPercent = normalizeDiscountPercent(sync.discountPercent, 10);
+  const mlPrice = roundCurrency(pricing.currentPrice);
+  const sitePrice = computeMeliDiscountedSitePrice(mlPrice, discountPercent);
+  const now = new Date().toISOString();
+
+  return sanitizeProduct({
+    ...product,
+    price: mlPrice,
+    promoPrice: sitePrice > 0 && sitePrice < mlPrice ? sitePrice : null,
+    mlPriceSync: {
+      ...sync,
+      enabled: true,
+      itemId: pricing.itemId || sync.itemId,
+      discountPercent,
+      mlPrice,
+      sitePrice,
+      mlTitle: pricing.title || sync.mlTitle,
+      mlStatus: pricing.status || sync.mlStatus,
+      mlPermalink: pricing.permalink || sync.mlPermalink,
+      lastSyncedAt: now,
+      lastError: "",
+    },
+  });
+}
+
+function applyMeliSyncErrorToProduct(product = {}, message = "") {
+  const sync = normalizeMlPriceSync(product.mlPriceSync || {});
+  return sanitizeProduct({
+    ...product,
+    mlPriceSync: {
+      ...sync,
+      lastError: String(message || "Falha ao sincronizar preco Mercado Livre.").trim(),
+    },
+  });
+}
+
+async function writeMeliPriceSyncStatus(status = {}) {
+  try {
+    const db = await connectDB();
+    await db.collection("settings").updateOne(
+      { _id: MELI_PRICE_SYNC_STATUS_ID },
+      {
+        $set: {
+          ...status,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      { upsert: true },
+    );
+  } catch (error) {
+    console.error("[meli-sync] erro ao salvar status:", error?.message || error);
+  }
+}
+
+async function readMeliPriceSyncStatus() {
+  try {
+    const db = await connectDB();
+    return await db.collection("settings").findOne({ _id: MELI_PRICE_SYNC_STATUS_ID });
+  } catch {
+    return null;
+  }
+}
+
+async function syncMeliLinkedProductPrices(options = {}) {
+  if (meliPriceSyncRunning) {
+    return { skipped: true, message: "Sincronizacao Mercado Livre ja esta em andamento." };
+  }
+
+  meliPriceSyncRunning = true;
+  const startedAt = new Date().toISOString();
+  const productIdFilter = String(options.productId || "").trim();
+  const source = String(options.source || "manual").trim();
+
+  try {
+    const credentials = await readMeliCredentials();
+    if (!hasMeliCredentials(credentials)) {
+      const message = "Credenciais do Mercado Livre nao configuradas.";
+      await writeMeliPriceSyncStatus({ ok: false, source, startedAt, finishedAt: new Date().toISOString(), message });
+      return { ok: false, synced: 0, failed: 0, skipped: 0, message };
+    }
+
+    const products = await readProducts();
+    const indexes = products
+      .map((product, index) => ({ product, index, sync: normalizeMlPriceSync(product.mlPriceSync || {}) }))
+      .filter(({ product, sync }) => {
+        if (productIdFilter && String(product.id) !== productIdFilter) return false;
+        return sync.enabled && sync.itemId;
+      });
+
+    if (!indexes.length) {
+      const message = productIdFilter
+        ? "Produto sem vinculo ativo com Mercado Livre."
+        : "Nenhum produto vinculado ao Mercado Livre.";
+      await writeMeliPriceSyncStatus({ ok: true, source, startedAt, finishedAt: new Date().toISOString(), synced: 0, failed: 0, message });
+      return { ok: true, synced: 0, failed: 0, skipped: products.length, message };
+    }
+
+    let synced = 0;
+    let failed = 0;
+    const errors = [];
+    let currentCredentials = credentials;
+
+    for (const target of indexes) {
+      const sync = target.sync;
+      try {
+        const pricing = await fetchMeliItemPricing(sync.itemId, currentCredentials);
+        products[target.index] = applyMeliPricingToProduct(target.product, pricing);
+        synced += 1;
+      } catch (error) {
+        const message = error?.message || "Falha ao sincronizar preco Mercado Livre.";
+        products[target.index] = applyMeliSyncErrorToProduct(target.product, message);
+        errors.push({ productId: target.product.id, itemId: sync.itemId, message });
+        failed += 1;
+
+        if (/token|unauthorized|invalid/i.test(message)) {
+          currentCredentials = await readMeliCredentials();
+        }
+      }
+    }
+
+    await writeProducts(products);
+    const ok = failed === 0;
+    const status = {
+      ok,
+      source,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      synced,
+      failed,
+      errors: errors.slice(0, 20),
+      message: ok
+        ? `Sincronizacao Mercado Livre concluida: ${synced} produto(s).`
+        : `Sincronizacao Mercado Livre parcial: ${synced} ok, ${failed} falha(s).`,
+    };
+    await writeMeliPriceSyncStatus(status);
+    return status;
+  } catch (error) {
+    const message = error?.message || "Falha geral na sincronizacao Mercado Livre.";
+    await writeMeliPriceSyncStatus({ ok: false, source, startedAt, finishedAt: new Date().toISOString(), message });
+    return { ok: false, synced: 0, failed: 1, message };
+  } finally {
+    meliPriceSyncRunning = false;
+  }
+}
+
+function startMeliPriceSyncScheduler() {
+  if (meliPriceSyncTimer) return;
+
+  const run = (source) => {
+    void syncMeliLinkedProductPrices({ source }).catch((error) => {
+      console.error("[meli-sync] erro agendado:", error?.message || error);
+    });
+  };
+
+  meliPriceSyncStartupTimer = setTimeout(() => run("startup"), MELI_PRICE_SYNC_STARTUP_DELAY_MS);
+  if (typeof meliPriceSyncStartupTimer.unref === "function") meliPriceSyncStartupTimer.unref();
+
+  meliPriceSyncTimer = setInterval(() => run("scheduler"), MELI_PRICE_SYNC_INTERVAL_MS);
+  if (typeof meliPriceSyncTimer.unref === "function") meliPriceSyncTimer.unref();
 }
 
 function sanitizeSlide(slide = {}) {
@@ -1771,6 +2227,7 @@ function mapProductInput(body = {}) {
     trustCards: normalizeTrustCards(body.trustCards),
     variations: normalizeVariations(body.variations),
     shipping: normalizeShippingPackage(shippingInput, normalizePrice(body.promoPrice || body.price)),
+    mlPriceSync: normalizeMlPriceSync(body.mlPriceSync || body.meliPriceSync || {}),
   };
 }
 
@@ -4060,6 +4517,48 @@ function createApp() {
     }
   });
 
+  app.get("/api/meli/status", async (_req, res) => {
+    try {
+      const [credentials, status, products] = await Promise.all([
+        readMeliCredentials(),
+        readMeliPriceSyncStatus(),
+        readProducts(),
+      ]);
+      const linkedProducts = products.filter((product) => {
+        const sync = normalizeMlPriceSync(product.mlPriceSync || {});
+        return sync.enabled && sync.itemId;
+      });
+
+      return res.json({
+        connected: hasMeliCredentials(credentials),
+        sellerId: credentials.sellerId || "",
+        linkedProducts: linkedProducts.length,
+        running: meliPriceSyncRunning,
+        intervalHours: Number((MELI_PRICE_SYNC_INTERVAL_MS / (60 * 60 * 1000)).toFixed(2)),
+        lastSync: status ? {
+          ok: Boolean(status.ok),
+          source: String(status.source || ""),
+          startedAt: String(status.startedAt || ""),
+          finishedAt: String(status.finishedAt || status.updatedAt || ""),
+          synced: Number(status.synced || 0),
+          failed: Number(status.failed || 0),
+          message: String(status.message || ""),
+        } : null,
+      });
+    } catch {
+      return res.status(500).json({ message: "Erro ao carregar status Mercado Livre." });
+    }
+  });
+
+  app.post("/api/meli/price-sync/run", async (_req, res) => {
+    try {
+      const result = await syncMeliLinkedProductPrices({ source: "manual-panel" });
+      return res.status(result.ok === false ? 500 : 200).json(result);
+    } catch (error) {
+      return res.status(500).json({ message: error?.message || "Erro ao sincronizar precos Mercado Livre." });
+    }
+  });
+
   app.get("/api/melhorenvio/connect-url", async (req, res) => {
     return res.json({
       provider: "superfrete",
@@ -4963,6 +5462,21 @@ function createApp() {
     return res.status(201).json({ images });
 });
 
+  app.post("/api/products/:id/sync-ml-price", async (req, res) => {
+    try {
+      const productId = String(req.params.id || "").trim();
+      const result = await syncMeliLinkedProductPrices({ productId, source: "manual-product" });
+      const products = await readProducts();
+      const product = products.find((item) => String(item.id) === productId) || null;
+      if (!product) {
+        return res.status(404).json({ message: "Produto nao encontrado." });
+      }
+      return res.status(result.ok === false ? 500 : 200).json({ ...result, product });
+    } catch (error) {
+      return res.status(500).json({ message: error?.message || "Erro ao sincronizar produto com Mercado Livre." });
+    }
+  });
+
   app.get("/api/products", async (_req, res) => {
     try {
       const products = await readProducts();
@@ -5011,6 +5525,10 @@ function createApp() {
       return res.status(400).json({ message: "Selecione pelo menos uma categoria." });
     }
 
+    if (input.mlPriceSync.enabled && !input.mlPriceSync.itemId) {
+      return res.status(400).json({ message: "Informe um ID ou link valido do anuncio Mercado Livre." });
+    }
+
     try {
       const product = sanitizeProduct({
         id: `p-${Date.now()}`,
@@ -5026,12 +5544,19 @@ function createApp() {
         trustCards: input.trustCards,
         variations: input.variations,
         shipping: input.shipping,
+        mlPriceSync: input.mlPriceSync,
         createdAt: new Date().toISOString(),
       });
 
       const products = await readProducts();
       products.unshift(product);
       await writeProducts(products);
+
+      if (product.mlPriceSync.enabled && product.mlPriceSync.itemId) {
+        await syncMeliLinkedProductPrices({ productId: product.id, source: "product-create" });
+        const refreshed = await readProducts();
+        return res.status(201).json(refreshed.find((item) => item.id === product.id) || product);
+      }
 
       return res.status(201).json(product);
     } catch (error) {
@@ -5067,6 +5592,10 @@ app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
       return res.status(400).json({ message: "Selecione pelo menos uma categoria." });
     }
 
+    if (input.mlPriceSync.enabled && !input.mlPriceSync.itemId) {
+      return res.status(400).json({ message: "Informe um ID ou link valido do anuncio Mercado Livre." });
+    }
+
     try {
       const products = await readProducts();
       const idx = products.findIndex((p) => p.id === id);
@@ -5090,9 +5619,16 @@ app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
         trustCards: input.trustCards,
         variations: input.variations,
         shipping: input.shipping,
+        mlPriceSync: input.mlPriceSync,
       });
 
       await writeProducts(products);
+      if (products[idx].mlPriceSync.enabled && products[idx].mlPriceSync.itemId) {
+        await syncMeliLinkedProductPrices({ productId: id, source: "product-update" });
+        const refreshed = await readProducts();
+        return res.json(refreshed.find((item) => item.id === id) || products[idx]);
+      }
+
       return res.json(products[idx]);
     } catch (error) {
       console.error("Erro na edição:", error);
@@ -5196,6 +5732,8 @@ app.put("/api/products/:id", upload.array("images", 10), async (req, res) => {
   void bootstrapPaymentWatchers().catch((error) => {
     console.error("[payment-watch-bootstrap] erro:", error?.message || error);
   });
+
+  startMeliPriceSyncScheduler();
 
   return app;
 }

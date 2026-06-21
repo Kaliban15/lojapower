@@ -60,6 +60,24 @@
           <input type="text" name="promoPrice" inputmode="decimal" placeholder="209,90" />
         </label>
 
+        <div class="ml-sync-box">
+          <label class="check-item ml-sync-toggle">
+            <input type="checkbox" name="mlSyncEnabled" />
+            Vincular preco ML
+          </label>
+          <div class="ml-sync-grid">
+            <label>
+              ID ou link do anuncio Mercado Livre
+              <input type="text" name="mlItemId" placeholder="MLB1234567890 ou link do anuncio" />
+            </label>
+            <label>
+              Desconto automatico (%)
+              <input type="text" name="mlDiscountPercent" inputmode="decimal" value="10" />
+            </label>
+          </div>
+          <p class="mini-note">Quando ativo, o site busca o preco atual do ML 2 vezes ao dia e aplica este desconto no valor do site.</p>
+        </div>
+
         <label>
           Descricao
           <textarea name="description" rows="4" required></textarea>
@@ -115,6 +133,23 @@
         <button type="submit" class="btn btn-primary">Salvar produto</button>
       </form>
       <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="admin-card collapsible collapsed" data-collapsible>
+      <button type="button" class="collapse-toggle" data-collapse-toggle>
+        <h2>Mercado Livre</h2>
+        <span class="collapse-icon">+</span>
+      </button>
+      <div class="collapse-body">
+        <div class="shipping-status" id="meliStatusBox">
+          <p><strong>Status:</strong> <span id="meliStatusText">Carregando...</span></p>
+          <p><strong>Seller ID:</strong> <code id="meliSellerId">-</code></p>
+          <p><strong>Produtos vinculados:</strong> <span id="meliLinkedProducts">0</span></p>
+          <p><strong>Ultima sincronizacao:</strong> <span id="meliLastSync">-</span></p>
+        </div>
+        <button type="button" class="btn btn-primary" id="syncMeliPricesBtn">Sincronizar precos ML agora</button>
+        <p id="meliSyncMessage" class="form-message" role="status" aria-live="polite"></p>
       </div>
     </section>
 
