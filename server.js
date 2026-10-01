@@ -11,6 +11,15 @@ const connectDB = require("./database"); // <--- ADICIONE ISSO
 const ROOT_DIR = __dirname;
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const UPLOAD_DIR = path.join(ROOT_DIR, "uploads");
+const SMART_MOUSE_INSTALLER_PATH = String(
+  process.env.SMART_MOUSE_INSTALLER_PATH
+  || "C:\\Users\\Giovani Burgo\\Documents\\Codex\\2026-09-30\\vamos-l-quero-que-voc-crie\\outputs\\PowerTechSmartMouse\\installer-v1.0-final\\PowerTech-Smart-Mouse-Setup.exe",
+).trim();
+const SMART_MOUSE_INSTALLER_NAME = "PowerTech-Smart-Mouse-Setup.exe";
+const SMART_MOUSE_DOWNLOAD_URL = String(
+  process.env.SMART_MOUSE_DOWNLOAD_URL
+  || "https://github.com/Kaliban15/lojapower/releases/download/smart-mouse-v1.0/PowerTech-Smart-Mouse-Setup.exe",
+).trim();
 
 // Removidos os caminhos de arquivos JSON (agora usamos MongoDB)
 
@@ -4477,6 +4486,28 @@ function createApp() {
 
   app.get(["/manual-rastreador", "/manual-rastreador/"], (_req, res) => {
     res.sendFile(path.join(ROOT_DIR, "manual-rastreador.html"));
+  });
+
+  app.get(["/smart-mouse", "/smart-mouse/"], (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(ROOT_DIR, "smart-mouse.html"));
+  });
+
+  app.get("/download/powertech-smart-mouse", (_req, res) => {
+    if (!fssync.existsSync(SMART_MOUSE_INSTALLER_PATH)) {
+      return res.redirect(302, SMART_MOUSE_DOWNLOAD_URL);
+    }
+
+    res.set({
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    });
+
+    return res.download(SMART_MOUSE_INSTALLER_PATH, SMART_MOUSE_INSTALLER_NAME, (error) => {
+      if (error && !res.headersSent) {
+        res.status(500).send("Não foi possível iniciar o download.");
+      }
+    });
   });
 
   app.use(express.static(ROOT_DIR));
