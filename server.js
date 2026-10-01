@@ -4488,7 +4488,7 @@ function createApp() {
     res.sendFile(path.join(ROOT_DIR, "manual-rastreador.html"));
   });
 
-  app.get(["/smart-mouse", "/smart-mouse/"], (_req, res) => {
+  app.get(["/smart_mouse", "/smart_mouse/", "/smart-mouse", "/smart-mouse/"], (_req, res) => {
     res.set("Cache-Control", "no-store");
     res.sendFile(path.join(ROOT_DIR, "smart-mouse.html"));
   });
