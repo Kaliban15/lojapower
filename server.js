@@ -4488,6 +4488,10 @@ function createApp() {
     res.sendFile(path.join(ROOT_DIR, "manual-rastreador.html"));
   });
 
+  app.get(["/manual-fone-3-geracao", "/manual-fone-3-geracao/"], (_req, res) => {
+    res.sendFile(path.join(ROOT_DIR, "manual-fone-3-geracao.html"));
+  });
+
   app.get(["/smart_mouse", "/smart_mouse/", "/smart-mouse", "/smart-mouse/"], (_req, res) => {
     res.set("Cache-Control", "no-store");
     res.sendFile(path.join(ROOT_DIR, "smart-mouse.html"));
